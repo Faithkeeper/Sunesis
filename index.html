@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Apokalypsis</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Fonts: serif for content, sans for UI -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <div id="app">
+
+    <!-- Title Bar -->
+    <header id="title-bar">
+      <div id="title-left">
+        <span id="game-title">APOKALUPSIS</span>
+        <button id="restart-btn" title="Restart game" aria-label="Restart" class="small-btn">Restart</button>
+        <button id="reader-toggle" title="Toggle reader mode (R)" aria-label="Reader mode" class="small-btn">Reader</button>
+      </div>
+
+      <!-- HUD (stats / flags) -->
+      <div id="hud" aria-live="polite">
+        <div id="hud-stats" role="list" aria-label="Player stats"></div>
+        <div id="hud-extras">
+          <div id="hud-flags" aria-label="Flags"></div>
+          <div id="hud-reps" aria-label="Reputations"></div>
+          <div id="hud-items" aria-label="Items"></div>
+        </div>
+      </div>
+
+      <span id="sigil" hidden>◌</span>
+    </header>
+
+    <!-- Story + Choices Layout -->
+    <section id="content-area">
+      <!-- Story -->
+      <main id="story" tabindex="0" role="region" aria-label="Story"></main>
+
+      <!-- Choices (sticky footer) -->
+      <footer id="choices" role="navigation" aria-label="Choices"></footer>
+    </section>
+
+  </div>
+
+  <!-- Script load order: save, acts, engine, app -->
+  <script src="save.js"></script>
+  <script src="act1.js"></script>
+  <script src="act2.js"></script>
+  <script src="act3.js"></script>
+  <script src="act4.js"></script>
+  <script src="act5.js"></script>
+  <script src="act6.js"></script>
+  <script src="engine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

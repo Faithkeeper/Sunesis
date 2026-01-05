@@ -1,0 +1,267 @@
+/* styles.css — improved typography & layout, plus Reader Mode styles (UPDATED with termination visuals) */
+
+:root{
+  --bg: #0e0e11;
+  --fg: #e6e6eb;
+  --muted: rgba(230,230,235,0.12);
+  --panel: rgba(255,255,255,0.02);
+  --accent: rgba(255,255,255,0.06);
+  --hud-bg: rgba(255,255,255,0.03);
+  --choice-hover: rgba(255,255,255,0.06);
+  --max-width: 800px;
+}
+
+/* Base */
+* { box-sizing: border-box; }
+html,body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-family: "Merriweather", Georgia, serif; /* serif for story text */
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+/* App container */
+#app {
+  max-width: 1024px;
+  margin: 1rem auto;
+  padding: 1rem;
+}
+
+/* Title bar and HUD */
+#title-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+#title-left { display:flex; align-items:center; gap:0.6rem; }
+#game-title {
+  letter-spacing: 0.12em;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+
+/* small button used for Restart / Reader */
+.small-btn {
+  margin-left: 0.4rem;
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: inherit;
+  padding: 0.28rem 0.64rem;
+  border-radius: 7px;
+  cursor: pointer;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  font-size: 0.82rem;
+}
+
+/* HUD */
+#hud {
+  display:flex;
+  gap:0.6rem;
+  align-items:center;
+  min-width: 240px;
+  max-width: 48%;
+  background: var(--hud-bg);
+  padding: 0.5rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.02);
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+
+#hud-stats { display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center; }
+.hud-stat { display:flex; flex-direction:column; align-items:center; min-width:64px; padding:0.35rem 0.5rem; background:var(--panel); border-radius:8px; }
+.hud-stat .label { font-size:0.67rem; opacity:0.9; }
+.hud-stat .value { font-weight:700; margin-top:0.12rem; font-size:1rem; }
+
+/* extras */
+#hud-extras { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; font-size:0.78rem; }
+.hud-section { display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap; }
+.section-label { font-size:0.7rem; opacity:0.9; margin-right:0.2rem; }
+
+/* Flag / chip */
+.flag-chip { background: rgba(255,255,255,0.03); padding:0.28rem 0.5rem; border-radius:999px; font-size:0.78rem; color:var(--fg); border:1px solid rgba(255,255,255,0.02); }
+
+/* Content area layout: story scrolls, choices sticky footer */
+#content-area {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: calc(80vh);
+}
+
+/* Story pane — scrollable */
+#story {
+  font-family: "Merriweather", Georgia, serif;
+  font-size: 1.06rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  margin: 0;
+  padding: 1.25rem 1.4rem;
+  background: linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.01));
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.02);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+  max-width: var(--max-width);
+  margin-left: auto;
+  margin-right: auto;
+
+  /* scrolling */
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: calc(72vh);
+}
+
+/* nicer paragraph spacing */
+#story p { margin: 0 0 0.9rem 0; }
+#story h1, #story h2 { margin: 0 0 0.6rem 0; font-weight:700; }
+
+/* custom scrollbar for story */
+#story::-webkit-scrollbar { width: 12px; }
+#story::-webkit-scrollbar-track { background: rgba(255,255,255,0.01); border-radius: 8px; }
+#story::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.04); border-radius: 8px; border: 3px solid rgba(0,0,0,0); background-clip: padding-box; }
+
+/* Choices footer — visually separate and sticky-ish */
+#choices {
+  position: relative;
+  padding: 0.6rem;
+  border-radius: 10px;
+  display:flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-width: var(--max-width);
+  margin-left: auto;
+  margin-right: auto;
+  z-index: 10;
+  background: transparent; /* keep minimal */
+}
+
+/* choice button look */
+.choice {
+  display:block;
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.02);
+  text-align:left;
+  color:white;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  font-size: 0.98rem;
+}
+.choice:hover { background: var(--choice-hover); transform: translateY(-1px); transition: transform 120ms ease; }
+
+/* veil micro style */
+.veil { opacity: 0.9; margin-top:1rem; font-style:italic; }
+
+/* Reader Mode styles */
+.reader-mode body, .reader-mode #app { /* not used, left for future hooks */ }
+.reader-mode #hud,
+.reader-mode #choices {
+  display: none !important;
+}
+.reader-mode #story {
+  max-width: 960px !important;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 2.2rem 2.4rem;
+  font-size: 1.18rem;
+  line-height: 1.85;
+  max-height: calc(94vh);
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+}
+
+/* provide a subtle indicator change on the reader button when active */
+#reader-toggle.active {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.06);
+}
+
+/* Protocol / termination visuals */
+
+/* glitch effect for ALPHA: subtle text displacement + clip */
+.glitch {
+  position: relative;
+  color: #e6e6eb;
+  animation: glitch-anim 1200ms linear infinite;
+  will-change: transform;
+}
+@keyframes glitch-anim {
+  0% { text-shadow: 2px 0 rgba(255,0,0,0.06); transform: translateX(0); }
+  10% { text-shadow: -2px 0 rgba(0,255,255,0.06); transform: translateX(-1px); }
+  20% { text-shadow: 2px -1px rgba(255,255,0,0.06); transform: translateX(1px); }
+  30% { text-shadow: -1px 1px rgba(255,0,255,0.06); transform: translateX(-2px); }
+  40% { text-shadow: 1px -2px rgba(0,255,0,0.06); transform: translateX(2px); }
+  50% { text-shadow: 0 0 rgba(255,255,255,0.01); transform: translateX(0); }
+  100% { text-shadow: 2px 0 rgba(255,0,0,0.06); transform: translateX(0); }
+}
+
+/* torn-text effect (used briefly while glitching) */
+.torn {
+  background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.06));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: contrast(1.6) saturate(0.9);
+}
+
+/* blackout state */
+.terminated-blackout, .terminated-blackout * {
+  background: #000 !important;
+  color: #000 !important;
+}
+.terminated-blackout #story {
+  background: #000 !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* read-only watcher visuals (BETA) */
+.readonly-badge {
+  display:inline-block;
+  padding:0.2rem 0.45rem;
+  border-radius:6px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  font-size: 0.82rem;
+  margin-bottom:0.6rem;
+}
+
+/* System ID Card */
+.system-id-card {
+  background: rgba(255,255,255,0.02);
+  border-radius: 12px;
+  padding: 1rem;
+  border: 1px solid rgba(255,255,255,0.03);
+  max-width: 720px;
+  margin: 0 auto;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  line-height: 1.4;
+}
+.system-id-card pre { white-space: pre-wrap; font-family: "Courier New", monospace; font-size:0.95rem; color: var(--fg); }
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+  #app { padding: 0.8rem; }
+  #hud { max-width: 100%; min-width: auto; }
+  #story { padding: 1rem; font-size: 1.01rem; max-height: calc(68vh); }
+  #choices { padding: 0.5rem; }
+}
+
+@media (max-width: 520px) {
+  #title-bar { align-items: flex-start; gap:0.6rem; }
+  #hud { display:block; width:100%; }
+  #hud-stats { gap:0.4rem; }
+  .hud-stat { min-width: 48px; padding:0.28rem 0.4rem; }
+  .flag-chip { font-size: 0.72rem; padding:0.2rem 0.45rem; }
+}
