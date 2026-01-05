@@ -164,10 +164,18 @@ body {
 
 /* Reader Mode styles */
 .reader-mode body, .reader-mode #app { /* not used, left for future hooks */ }
-.reader-mode #hud,
-.reader-mode #choices {
+
+/* Keep HUD hidden in reader mode (CSS) but let JS decide when to show choices */
+.reader-mode #hud {
   display: none !important;
 }
+
+/* Do NOT force-hide #choices here — allow JavaScript to show/hide it based on scroll */
+.reader-mode #choices {
+  /* intentionally left empty so updateChoiceVisibilityBasedOnScroll can control display */
+}
+
+/* Story layout for reader mode stays the same */
 .reader-mode #story {
   max-width: 960px !important;
   margin-left: auto;
