@@ -538,6 +538,17 @@
     else runProtocolGamma(player);
   }
 
+// -------------------------
+  // Act Registry
+  // -------------------------
+  const ACTS = {
+    act1: window.act1,
+    act2: window.act2,
+    act3: window.act3,
+    act4: window.act4,
+    act5: window.act5,
+    act6: window.act6
+  };
   // -------------------------
   // Core rendering and choice handling (single place) — autosave after every choice
   // -------------------------
