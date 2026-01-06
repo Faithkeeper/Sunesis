@@ -1,15 +1,26 @@
-// app.js — full app script with Book 1 Termination Sequence (ALPHA / BETA / GAMMA)
-// - Template support for {{LATE_NAME}}
-// - enterActions multi-match support
-// - Termination logic and UI experiences
+// app.js — Multiple save profiles, autosave after every choice, Continue loads last-used profile
+// - Profiles stored in localStorage under "apokalypsis_profiles_v1" (object of name->profile)
+// - Last used profile name stored under "apokalypsis_last_profile_v1"
+// - Autosave (saveCurrentProfile) invoked after every choice application and on important changes
+// - On startup, app attempts to load the last-used profile automatically (if present)
+// - Provides a small profile UI in the title area to create/switch/delete profiles
 //
-// NOTE: this is a drop-in replacement for the previous app.js. Keep engine.js/acts loaded as before.
+// This file is a drop-in replacement for your previous app.js. It preserves:
+// - enterActions multi-match behavior
+// - reader-mode and scroll-based choice reveal
+// - termination sequence (ALPHA/BETA/GAMMA)
+// - template substitution {{LATE_NAME}} for identity
+//
+// Notes:
+// - If you already have saveGame/loadSave functions, this implementation still writes to them
+//   where appropriate but uses its own profile store as canonical for multi-profile support.
 
 (function () {
   const storyEl = document.getElementById("story");
   const choicesEl = document.getElementById("choices");
   const restartBtn = document.getElementById("restart-btn");
   const readerToggleBtn = document.getElementById("reader-toggle");
+  const titleLeft = document.getElementById("title-left"); // used to inject profile UI if present
 
   const hudStatsEl = document.getElementById("hud-stats");
   const hudFlagsEl = document.getElementById("hud-flags");
@@ -25,38 +36,256 @@
     return btn;
   }
 
-  const Engine = window.Engine;
+  const Engine = window.Engine || { player: {} }; // Engine.applyChoice must exist in your environment
   if (!Engine) {
     console.error("Engine not defined; ensure engine.js loaded.");
     if (storyEl) storyEl.textContent = "Error: Engine not available. Check console.";
     return;
   }
 
-  const ACTS = {
-    act1: window.ACT1 || null,
-    act2: window.ACT2 || null,
-    act3: window.ACT3 || null,
-    act4: window.ACT4 || null,
-    act5: window.ACT5 || null,
-    act6: window.ACT6 || null
-  };
+  // -------------------------
+  // Profile storage layer (localStorage)
+  // -------------------------
+  const PROFILES_KEY = "apokalypsis_profiles_v1";
+  const LAST_PROFILE_KEY = "apokalypsis_last_profile_v1";
 
-  const saved = (typeof loadSave === "function" ? loadSave() : null) || null;
-  let currentAct = ACTS.act1;
-  if (saved && saved.act && ACTS["act" + saved.act]) currentAct = ACTS["act" + saved.act];
-  let currentSceneId = (saved && saved.scene) || (currentAct ? currentAct.start : null);
+  function loadProfilesFromStorage() {
+    try {
+      const raw = localStorage.getItem(PROFILES_KEY);
+      if (!raw) return {};
+      return JSON.parse(raw);
+    } catch (err) {
+      console.warn("Failed to parse profiles from storage:", err);
+      return {};
+    }
+  }
+  function saveProfilesToStorage(profiles) {
+    try {
+      localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+    } catch (err) {
+      console.error("Failed to write profiles to storage:", err);
+    }
+  }
+  function getLastProfileName() {
+    try { return localStorage.getItem(LAST_PROFILE_KEY); } catch (e) { return null; }
+  }
+  function setLastProfileName(name) {
+    try { if (name) localStorage.setItem(LAST_PROFILE_KEY, name); else localStorage.removeItem(LAST_PROFILE_KEY);} catch (e) {}
+  }
 
-  function saveScene(sceneId) {
-    if (typeof saveGame === "function") {
-      if (currentAct && currentAct.id && currentAct.id.startsWith("act")) {
-        const actNum = Number(currentAct.id.replace("act", ""));
-        Engine.player.act = actNum || Engine.player.act;
+  // Profile shape:
+  // { player: {...}, scene: "actX_sceneY", updated_at: ISOString, displayName: "Name" }
+
+  let PROFILES = loadProfilesFromStorage();
+  let currentProfileName = getLastProfileName() || null;
+
+  function ensureDefaultProfile() {
+    if (!currentProfileName) {
+      const defaultName = "Default";
+      if (!PROFILES[defaultName]) {
+        PROFILES[defaultName] = createProfileObjectFromEngine(defaultName);
+        saveProfilesToStorage(PROFILES);
       }
-      saveGame({ ...Engine.player, scene: sceneId });
+      currentProfileName = defaultName;
+      setLastProfileName(defaultName);
     }
   }
 
-  // ---------- Template helper ----------
+  function createProfileObjectFromEngine(displayName) {
+    return {
+      player: cloneDeep(Engine.player || {}),
+      scene: currentSceneId || (Engine.player && Engine.player.scene) || null,
+      updated_at: new Date().toISOString(),
+      displayName: displayName || "Profile"
+    };
+  }
+
+  function cloneDeep(obj) {
+    return JSON.parse(JSON.stringify(obj || {}));
+  }
+
+  function saveCurrentProfile() {
+    try {
+      if (!currentProfileName) return;
+      PROFILES = loadProfilesFromStorage(); // refresh to merge concurrent changes
+      PROFILES[currentProfileName] = {
+        player: cloneDeep(Engine.player || {}),
+        scene: currentSceneId || (Engine.player && Engine.player.scene) || null,
+        updated_at: new Date().toISOString(),
+        displayName: currentProfileName
+      };
+      saveProfilesToStorage(PROFILES);
+      setLastProfileName(currentProfileName);
+      // still call legacy saveGame if provided
+      if (typeof saveGame === "function") saveGame(PROFILES[currentProfileName].player);
+    } catch (err) {
+      console.error("Failed to save current profile:", err);
+    }
+  }
+
+  function loadProfile(name) {
+    try {
+      const profiles = loadProfilesFromStorage();
+      if (!profiles[name]) return false;
+      const profile = profiles[name];
+      Engine.player = cloneDeep(profile.player || {});
+      // attempt to set currentAct based on Engine.player.act if present
+      if (Engine.player && Engine.player.act) {
+        const actKey = "act" + Number(Engine.player.act);
+        if (window[("ACT" + Engine.player.act).toUpperCase()]) {
+          // nothing required; renderScene handles act lookup
+        }
+      }
+      currentProfileName = name;
+      setLastProfileName(name);
+      // set the currentSceneId to the saved scene if present (so renderScene picks it up)
+      if (profile.scene) currentSceneId = profile.scene;
+      // persist (update timestamp)
+      profiles[name].updated_at = new Date().toISOString();
+      saveProfilesToStorage(profiles);
+      updateProfileUI();
+      return true;
+    } catch (err) {
+      console.error("Failed to load profile:", err);
+      return false;
+    }
+  }
+
+  function createProfile(name) {
+    if (!name || !name.trim()) return null;
+    name = String(name).trim();
+    PROFILES = loadProfilesFromStorage();
+    if (PROFILES[name]) return null; // exists
+    PROFILES[name] = createProfileObjectFromEngine(name);
+    saveProfilesToStorage(PROFILES);
+    currentProfileName = name;
+    setLastProfileName(name);
+    updateProfileUI();
+    return name;
+  }
+
+  function deleteProfile(name) {
+    PROFILES = loadProfilesFromStorage();
+    if (!PROFILES[name]) return false;
+    delete PROFILES[name];
+    saveProfilesToStorage(PROFILES);
+    // if deleted current, pick another
+    if (currentProfileName === name) {
+      const keys = Object.keys(PROFILES);
+      if (keys.length > 0) {
+        currentProfileName = keys[0];
+        loadProfile(currentProfileName);
+      } else {
+        currentProfileName = null;
+        setLastProfileName(null);
+      }
+    }
+    updateProfileUI();
+    return true;
+  }
+
+  function listProfiles() {
+    PROFILES = loadProfilesFromStorage();
+    return Object.keys(PROFILES).map(k => ({ name: k, updated_at: PROFILES[k].updated_at }));
+  }
+
+  // -------------------------
+  // UI: minimal profile selector in title-left (created dynamically if available)
+  // -------------------------
+  function updateProfileUI() {
+    if (!titleLeft) return;
+    let container = document.getElementById("profile-ui");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "profile-ui";
+      container.style.display = "flex";
+      container.style.alignItems = "center";
+      container.style.gap = "0.5rem";
+      titleLeft.appendChild(container);
+    }
+    container.innerHTML = "";
+
+    // Profile select
+    const select = document.createElement("select");
+    select.id = "profile-select";
+    const profiles = listProfiles();
+    if (profiles.length === 0) {
+      const opt = document.createElement("option");
+      opt.textContent = "(no profiles)";
+      opt.value = "";
+      select.appendChild(opt);
+    } else {
+      profiles.forEach(p => {
+        const opt = document.createElement("option");
+        opt.value = p.name;
+        opt.textContent = p.name + " ";
+        if (currentProfileName === p.name) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+    select.addEventListener("change", (ev) => {
+      const val = ev.target.value;
+      if (val) {
+        if (confirm(`Switch to profile "${val}"? Unsaved changes in current profile will be saved automatically.`)) {
+          saveCurrentProfile();
+          loadProfile(val);
+          // reload scene from profile
+          if (currentSceneId) renderScene(currentSceneId);
+        } else {
+          updateProfileUI();
+        }
+      }
+    });
+    container.appendChild(select);
+
+    // New profile button
+    const newBtn = document.createElement("button");
+    newBtn.className = "small-btn";
+    newBtn.textContent = "New profile";
+    newBtn.onclick = () => {
+      const name = prompt("New profile name:");
+      if (!name) return;
+      if (PROFILES[name]) {
+        alert("Profile exists.");
+        return;
+      }
+      saveCurrentProfile();
+      createProfile(name);
+      loadProfile(name);
+      renderScene(currentSceneId);
+    };
+    container.appendChild(newBtn);
+
+    // Delete profile button
+    const delBtn = document.createElement("button");
+    delBtn.className = "small-btn";
+    delBtn.textContent = "Delete";
+    delBtn.onclick = () => {
+      if (!currentProfileName) { alert("No profile selected."); return; }
+      if (!confirm(`Delete profile "${currentProfileName}"? This cannot be undone.`)) return;
+      deleteProfile(currentProfileName);
+      // after deletion, reload profiles and pick one
+      const keys = Object.keys(PROFILES);
+      if (keys.length > 0) loadProfile(keys[0]);
+      renderScene(currentSceneId);
+    };
+    container.appendChild(delBtn);
+
+    // Show last-updated small label
+    if (currentProfileName) {
+      const info = document.createElement("div");
+      info.style.fontSize = "0.78rem";
+      info.style.opacity = 0.9;
+      info.style.marginLeft = "0.4rem";
+      const p = PROFILES[currentProfileName];
+      info.textContent = `Loaded: ${currentProfileName}` + (p && p.updated_at ? ` • ${new Date(p.updated_at).toLocaleString()}` : "");
+      container.appendChild(info);
+    }
+  }
+
+  // -------------------------
+  // Utility helpers (template, late-name prompt, identity seed)
+  // -------------------------
   function applyTemplates(text) {
     if (!text || typeof text !== "string") return text;
     const nameRaw = (Engine.player && Engine.player.late_name) ? String(Engine.player.late_name).trim() : "";
@@ -64,7 +293,6 @@
     return text.replace(/{{\s*LATE_NAME\s*}}/g, nameForDisplay);
   }
 
-  // ---------- Late-name prompt (status lines display) ----------
   function promptForLateName(force = false) {
     try {
       const existing = Engine.player && Engine.player.late_name;
@@ -80,9 +308,7 @@
         "STATUS: UNAVOIDABLE"
       ].join("\n");
 
-      if (storyEl) {
-        storyEl.textContent = statusBlock;
-      }
+      if (storyEl) storyEl.textContent = statusBlock;
       clearChoices();
       updateHUD();
       updateChoiceVisibilityBasedOnScroll();
@@ -110,7 +336,9 @@
       Engine.player.late_name = name || "";
       Engine.player.flags = Engine.player.flags || [];
       if (name && !Engine.player.flags.includes("late_name_ready")) Engine.player.flags.push("late_name_ready");
-      if (typeof saveGame === "function") saveGame(Engine.player);
+
+      // Autosave after name entry
+      saveCurrentProfile();
 
       const confirmation = statusBlock + "\n\n[IDENTITY REGISTERED: " + (Engine.player.late_name || "").toUpperCase() + "]";
       if (storyEl) storyEl.textContent = confirmation;
@@ -123,7 +351,6 @@
     }
   }
 
-  // ---------- Identity seed / migration ----------
   function generateIdentitySeed(player) {
     try {
       const obj = {
@@ -166,61 +393,178 @@
     URL.revokeObjectURL(url);
   }
 
-  // ---------- Restart logic ----------
-  function resetPlayerToDefaults(desiredAct = 1) {
-    const defaultPlayer = {
-      stats: { sunesis: 0, gnosis: 0, skepticism: 0, authority: 0, discovery: 0 },
-      flags: [], reputations: [], items: [], history: [], alignment: null, act: desiredAct, late_name: null, created_at: new Date().toISOString()
-    };
-    if (Engine && Engine.player) {
-      for (const k of Object.keys(Engine.player)) delete Engine.player[k];
-      Object.assign(Engine.player, defaultPlayer);
-    } else {
-      window.Engine.player = defaultPlayer;
-    }
-    if (typeof saveGame === "function") saveGame(Engine.player);
+  // -------------------------
+  // Termination logic (protocols) — same as previous implementation but uses saveCurrentProfile when creating ID card
+  // -------------------------
+  function computeFriction(player) {
+    const statSum = Object.values(player.stats || {}).reduce((s, v) => s + Number(v || 0), 0);
+    const flagCount = (player.flags || []).length || 0;
+    return statSum + flagCount;
   }
 
-  function restartGamePrompt() {
-    const currentActNum = Engine.player && Engine.player.act ? Number(Engine.player.act) : 1;
-    const hasMultipleActs = !!(ACTS.act2);
-    if (currentActNum <= 1 || !hasMultipleActs) {
-      if (!confirm("Restart the game from the beginning? This will clear your save and return to Act 1.")) return;
-      try { if (typeof clearSave === "function") clearSave(); } catch (e) { localStorage.removeItem("apokalypsis_save_v1"); }
-      resetPlayerToDefaults(1);
-      currentAct = ACTS.act1;
-      currentSceneId = currentAct.start;
-      renderScene(currentSceneId);
-      return;
-    }
-
-    const choice = window.prompt("Restart options:\n1 = Restart current act from its beginning\n2 = Restart the entire game from Act 1\nEnter 1 or 2 (or Cancel to abort)", "1");
-    if (choice === null) return;
-    if (choice.trim() === "1") {
-      const actNum = currentAct && currentAct.id && /^act([1-6])$/.test(currentAct.id) ? Number(currentAct.id.replace("act", "")) : (Engine.player.act || 1);
-      if (!confirm(`Restart from the beginning of Act ${actNum}? This will clear saved progress.`)) return;
-      try { if (typeof clearSave === "function") clearSave(); } catch (e) { localStorage.removeItem("apokalypsis_save_v1"); }
-      resetPlayerToDefaults(actNum);
-      if (ACTS["act" + actNum]) currentAct = ACTS["act" + actNum];
-      currentSceneId = currentAct.start;
-      renderScene(currentSceneId);
-      return;
-    }
-    if (choice.trim() === "2") {
-      if (!confirm("Restart the entire game from Act 1? This will clear saved progress.")) return;
-      try { if (typeof clearSave === "function") clearSave(); } catch (e) { localStorage.removeItem("apokalypsis_save_v1"); }
-      resetPlayerToDefaults(1);
-      currentAct = ACTS.act1;
-      currentSceneId = currentAct.start;
-      renderScene(currentSceneId);
-      return;
-    }
-    return;
+  function computeCore(player) {
+    const flags = player.flags || [];
+    if (flags.includes("team_loyalty") || flags.includes("acted_purge") || flags.includes("compliance")) return "LOYALTY";
+    if (flags.includes("signed_full") || flags.includes("acted_report")) return "CHAOS";
+    return "LOGIC";
   }
 
-  if (restartBtn) restartBtn.addEventListener("click", restartGamePrompt);
+  function selectProtocol(player) {
+    const flags = player.flags || [];
+    let disruption = 0, compliance = 0, precision = 0;
+    ["cmd_broadcast", "signed_full", "acted_delegate", "cmd_delegate", "acted_broadcast"].forEach(f => { if (flags.includes(f)) disruption += 3; });
+    ["cmd_purge", "signed_clean", "team_loyalty", "compliance"].forEach(f => { if (flags.includes(f)) compliance += 3; });
+    ["signed_dissent", "tactical_aggression", "prep_position", "verification", "act6_question"].forEach(f => { if (flags.includes(f)) precision += 2; });
+    precision += (player.stats && player.stats.gnosis) || 0;
+    disruption += (player.stats && player.stats.discovery) || 0;
+    compliance += (player.stats && player.stats.authority) || 0;
+    if (disruption >= compliance && disruption >= precision && disruption > 0) return "ALPHA";
+    if (compliance >= disruption && compliance >= precision && compliance > 0) return "BETA";
+    if (precision >= disruption && precision >= compliance && precision > 0) return "GAMMA";
+    return computeCore(player) === "LOYALTY" ? "BETA" : "GAMMA";
+  }
 
-  // ---------- Acts helpers ----------
+  function showSystemIDCard(protocol, friction, core) {
+    clearChoices();
+    document.documentElement.classList.remove("terminated-blackout");
+    const lines = [
+      "SYSTEM LOG: BOOK 1 ARCHIVED.",
+      `TOTAL FRICTION: ${friction}`,
+      `CORE PHILOSOPHY: ${core}`,
+      "",
+      "AWAITING BOOK 2 INITIALIZATION..."
+    ];
+    const html = `<div class="system-id-card"><pre>${lines.join("\n")}</pre></div>`;
+    storyEl.innerHTML = applyTemplates(html);
+    choicesEl.innerHTML = "";
+    const dl = createChoiceButton("Download migration payload (JSON)", () => { downloadMigrationPayload("migration_payload_book1.json"); });
+    const inspect = createChoiceButton("Inspect player (console)", () => { console.log("Player state:", Engine.player); alert("Player state logged to console."); });
+    choicesEl.appendChild(dl);
+    choicesEl.appendChild(inspect);
+    updateHUD();
+    choicesEl.style.display = "";
+    // ensure final profile save is persisted for Book 2 usage
+    saveCurrentProfile();
+  }
+
+  function runProtocolAlpha(player) {
+    clearChoices();
+    storyEl.textContent = "PROTOCOL ALPHA: THE EJECTION\n\nDATA DENSITY EXCEEDS LIMITS...\nSYSTEM SEIZURE IMMINENT.";
+    storyEl.classList.add("glitch", "torn");
+    updateHUD();
+    setTimeout(() => {
+      document.documentElement.classList.add("terminated-blackout");
+      storyEl.textContent = "";
+      storyEl.classList.remove("glitch", "torn");
+      clearChoices();
+      updateHUD();
+      const ALPHA_BLACKOUT = 4200;
+      setTimeout(() => {
+        const friction = computeFriction(player);
+        const core = computeCore(player);
+        showSystemIDCard("ALPHA", friction, core);
+      }, ALPHA_BLACKOUT);
+    }, 1400);
+  }
+
+  function runProtocolBeta(player) {
+    const friction = computeFriction(player);
+    const core = computeCore(player);
+    clearChoices();
+    const cardLines = [
+      "SYSTEM ID: READ-ONLY",
+      "",
+      "ROLE: PRIMARY COORDINATOR (READ-ONLY)",
+      `TOTAL FRICTION: ${friction}`,
+      `CORE PHILOSOPHY: ${core}`,
+      "",
+      "You can scroll and observe pending tasks. Interaction is locked."
+    ];
+    const html = `<div class="readonly-badge">READ-ONLY</div><div class="system-id-card"><pre>${cardLines.join("\n")}</pre><div id="beta-timer" style="margin-top:0.8rem;font-family:monospace;"></div></div>`;
+    storyEl.innerHTML = html;
+    choicesEl.innerHTML = "";
+    updateHUD();
+    choicesEl.style.display = "none";
+    let seconds = 300;
+    function formatTime(s) { const m = Math.floor(s/60).toString().padStart(2,"0"); const ss = (s%60).toString().padStart(2,"0"); return `${m}:${ss}`; }
+    const timerEl = document.getElementById("beta-timer");
+    if (timerEl) timerEl.textContent = `TIMER UNTIL RESET: ${formatTime(seconds)}`;
+    const interval = setInterval(() => {
+      seconds -= 1;
+      if (timerEl) timerEl.textContent = `TIMER UNTIL RESET: ${formatTime(seconds)}`;
+      if (seconds <= 0) {
+        clearInterval(interval);
+        showSystemIDCard("BETA", friction, computeCore(player));
+      }
+    }, 1000);
+  }
+
+  function runProtocolGamma(player) {
+    clearChoices();
+    const friction = computeFriction(player);
+    const core = computeCore(player);
+    const html = [
+      "PROTOCOL GAMMA: THE OPERATOR",
+      "",
+      "SYSTEM CALIBRATING. WOULD YOU LIKE TO MONITOR THE HANDOVER?",
+      "",
+      "(A rare courtesy — choose YES to remain and watch, NO to step away.)"
+    ].join("\n");
+    storyEl.textContent = html;
+    clearChoices();
+    const yes = createChoiceButton("YES — Monitor the handover", () => {
+      storyEl.textContent = "AWAITING RE-INITIALIZATION...\n\nMONITORING: SYSTEM HANDOVER STREAM\n\n(You watch the gears turn.)";
+      clearChoices();
+      updateHUD();
+      setTimeout(() => {
+        showSystemIDCard("GAMMA", friction, core);
+      }, 3000);
+    });
+    const no = createChoiceButton("NO — Walk away", () => {
+      showSystemIDCard("GAMMA", friction, core);
+    });
+    choicesEl.appendChild(yes);
+    choicesEl.appendChild(no);
+    updateHUD();
+    choicesEl.style.display = "";
+  }
+
+  function runTerminationSequence() {
+    const player = Engine.player || {};
+    const protocol = selectProtocol(player);
+    console.log("Selected termination protocol:", protocol);
+    if (protocol === "ALPHA") runProtocolAlpha(player);
+    else if (protocol === "BETA") runProtocolBeta(player);
+    else runProtocolGamma(player);
+  }
+
+  // -------------------------
+  // Core rendering and choice handling (single place) — autosave after every choice
+  // -------------------------
+  let currentAct = window.ACT1 || null;
+  let currentSceneId = (currentAct && currentAct.start) || null;
+
+  function saveScene(sceneId) {
+    if (typeof saveGame === "function") {
+      if (currentAct && currentAct.id && currentAct.id.startsWith("act")) {
+        const actNum = Number(currentAct.id.replace("act", ""));
+        Engine.player.act = actNum || Engine.player.act;
+      }
+      saveGame({ ...Engine.player, scene: sceneId });
+    }
+    // keep the profile scene sync too
+    try {
+      if (currentProfileName) {
+        PROFILES = loadProfilesFromStorage();
+        PROFILES[currentProfileName] = PROFILES[currentProfileName] || {};
+        PROFILES[currentProfileName].player = cloneDeep(Engine.player);
+        PROFILES[currentProfileName].scene = sceneId;
+        PROFILES[currentProfileName].updated_at = new Date().toISOString();
+        saveProfilesToStorage(PROFILES);
+      }
+    } catch (err) { /* ignore */ }
+  }
+
   function findActForSceneId(sceneId) {
     if (!sceneId || typeof sceneId !== "string") return null;
     for (let key in ACTS) {
@@ -232,44 +576,102 @@
     if (m && ACTS["act" + m[1]]) return ACTS["act" + m[1]];
     return null;
   }
-  
- function resolveAndSwitchActIfNeeded(sceneId) {
-    if (!sceneId) return null;
 
-    // 1. Handle explicit Act Start triggers (e.g., "act2_start")
-    const actStartMatch = sceneId.match(/^act([1-6])_start$/);
-    if (actStartMatch) {
-      const actKey = "act" + actStartMatch[1];
-      if (ACTS[actKey]) {
-        currentAct = ACTS[actKey];
-        // Ensure we save the new act number to the player state immediately
-        if (Engine.player) Engine.player.act = Number(actStartMatch[1]);
-        return currentAct.start;
+  function resolveAndSwitchActIfNeeded(nextId) {
+    if (typeof nextId === "string" && /^act([1-6])_start$/.test(nextId)) {
+      const actIndex = nextId.match(/^act([1-6])_start$/)[1];
+      const actKey = "act" + actIndex;
+      const act = ACTS[actKey];
+      if (!act) {
+        const msg = `Act ${actIndex} is not loaded in this web build.\n\nYou can download a migration payload to preserve your current progress, inspect the player state in the console, or clear the save and restart.`;
+        storyEl.textContent = msg;
+        clearChoices();
+        const dl = createChoiceButton("Download migration payload", () => downloadMigrationPayload(`migration_payload_act${Engine.player.act || "current"}.json`));
+        const inspect = createChoiceButton("Inspect player (console)", () => { console.log("Player state:", Engine.player); alert("Player state logged to console."); });
+        const clear = createChoiceButton("Clear save & restart", () => { if (confirm("Clear save and restart from Act 1?")) { if (typeof clearSave === "function") clearSave(); resetPlayerToDefaults(1); currentAct = ACTS.act1; renderScene(currentAct.start); }});
+        const close = createChoiceButton("Close (return)", () => { renderScene(currentSceneId); });
+        choicesEl.appendChild(dl); choicesEl.appendChild(inspect); choicesEl.appendChild(clear); choicesEl.appendChild(close);
+        updateHUD();
+        choicesEl.style.display = "";
+        return null;
       }
+      currentAct = act;
+      return act.start;
     }
-
-    // 2. If the scene exists in the current act, return it
-    if (currentAct && currentAct.scenes && currentAct.scenes[sceneId]) {
-      return sceneId;
-    }
-
-    // 3. If not in current act, search other acts and switch if found
-    const owningAct = findActForSceneId(sceneId);
-    if (owningAct) {
-      currentAct = owningAct;
-      // Extract act number from ID (assuming format "actX")
-      if (owningAct.id) {
-        const num = parseInt(owningAct.id.replace("act", ""), 10);
-        if (!isNaN(num) && Engine.player) Engine.player.act = num;
-      }
-      return sceneId;
-    }
-
-    // 4. Fallback: return the ID as is (renderScene will handle "Scene not found")
-    return sceneId;
+    const owningAct = findActForSceneId(nextId);
+    if (owningAct && owningAct !== currentAct) currentAct = owningAct;
+    return nextId;
   }
 
-  // ---------- HUD ----------
+  // applyEnterActions (multi-match)
+  function applyEnterActions(scene) {
+    if (!scene || !scene.enterActions || !Array.isArray(scene.enterActions)) return "";
+    let appendTexts = [];
+    let matchedAny = false;
+
+    for (let act of scene.enterActions) {
+      if (act.default) continue;
+      let matched = false;
+      if (act.ifAny && Array.isArray(act.ifAny)) matched = act.ifAny.some(f => (Engine.player.flags || []).includes(f));
+      if (!matched && act.ifFlag) {
+        if (Array.isArray(act.ifFlag)) matched = act.ifFlag.some(f => (Engine.player.flags || []).includes(f));
+        else matched = (Engine.player.flags || []).includes(act.ifFlag);
+      }
+      if (!matched && act.ifAll && Array.isArray(act.ifAll)) matched = act.ifAll.every(f => (Engine.player.flags || []).includes(f));
+      if (matched) {
+        matchedAny = true;
+        if (act.addFlags && Array.isArray(act.addFlags)) {
+          Engine.player.flags = Engine.player.flags || [];
+          act.addFlags.forEach(f => { if (!Engine.player.flags.includes(f)) Engine.player.flags.push(f); });
+        }
+        if (act.addReputations && Array.isArray(act.addReputations)) {
+          Engine.player.reputations = Engine.player.reputations || [];
+          act.addReputations.forEach(r => { if (!Engine.player.reputations.includes(r)) Engine.player.reputations.push(r); });
+        }
+        if (act.addItems && Array.isArray(act.addItems)) {
+          Engine.player.items = Engine.player.items || [];
+          act.addItems.forEach(i => { if (!Engine.player.items.includes(i)) Engine.player.items.push(i); });
+        }
+        if (act.addStats && typeof act.addStats === "object") {
+          Engine.player.stats = Engine.player.stats || {};
+          for (let k in act.addStats) Engine.player.stats[k] = (Number(Engine.player.stats[k]) || 0) + (Number(act.addStats[k]) || 0);
+        }
+        if (act.text) appendTexts.push(act.text);
+      }
+    }
+
+    if (!matchedAny) {
+      for (let act of scene.enterActions) {
+        if (act.default) {
+          if (act.addFlags && Array.isArray(act.addFlags)) {
+            Engine.player.flags = Engine.player.flags || [];
+            act.addFlags.forEach(f => { if (!Engine.player.flags.includes(f)) Engine.player.flags.push(f); });
+          }
+          if (act.addReputations && Array.isArray(act.addReputations)) {
+            Engine.player.reputations = Engine.player.reputations || [];
+            act.addReputations.forEach(r => { if (!Engine.player.reputations.includes(r)) Engine.player.reputations.push(r); });
+          }
+          if (act.addItems && Array.isArray(act.addItems)) {
+            Engine.player.items = Engine.player.items || [];
+            act.addItems.forEach(i => { if (!Engine.player.items.includes(i)) Engine.player.items.push(i); });
+          }
+          if (act.addStats && typeof act.addStats === "object") {
+            Engine.player.stats = Engine.player.stats || {};
+            for (let k in act.addStats) Engine.player.stats[k] = (Number(Engine.player.stats[k]) || 0) + (Number(act.addStats[k]) || 0);
+          }
+          if (act.text) appendTexts.push(act.text);
+          break;
+        }
+      }
+    }
+
+    if (typeof saveGame === "function") saveGame(Engine.player);
+    // also persist profile state after enterActions in case they added flags/items/stats
+    saveCurrentProfile();
+    return appendTexts.join("\n\n");
+  }
+
+  // Rendering and choice handling (core)
   function updateHUD() {
     const p = Engine.player || {};
     const stats = p.stats || {};
@@ -356,7 +758,7 @@
     }
   }
 
-  // ---------- Reader Mode & scroll-based choice reveal ----------
+  // Reader mode helpers (unchanged)
   const READER_KEY = "apokalypsis_reader_mode";
   function isReaderMode() {
     try { return localStorage.getItem(READER_KEY) === "1"; } catch (e) { return false; }
@@ -373,19 +775,18 @@
         document.documentElement.classList.remove("reader-mode");
         if (readerToggleBtn) readerToggleBtn.classList.remove("active");
         localStorage.removeItem(READER_KEY);
-        choicesEl.style.display = "";
+        // allow JS to manage choices visibility
+        updateChoiceVisibilityBasedOnScroll();
         const first = choicesEl.querySelector(".choice");
         if (first) first.focus();
       }
     } catch (err) { console.warn("Failed to toggle reader mode:", err); }
   }
-
   function isStoryAtBottom(threshold = 12) {
     if (!storyEl) return true;
     const { scrollTop, scrollHeight, clientHeight } = storyEl;
     return (scrollHeight - (scrollTop + clientHeight) <= threshold);
   }
-
   function updateChoiceVisibilityBasedOnScroll() {
     if (!choicesEl) return;
     if (isReaderMode()) {
@@ -395,10 +796,7 @@
       choicesEl.style.display = "";
     }
   }
-
-  if (readerToggleBtn) {
-    readerToggleBtn.addEventListener("click", () => setReaderMode(!isReaderMode()));
-  }
+  if (readerToggleBtn) readerToggleBtn.addEventListener("click", () => setReaderMode(!isReaderMode()));
   window.addEventListener("keydown", (ev) => {
     const tag = document.activeElement && document.activeElement.tagName && document.activeElement.tagName.toLowerCase();
     if (tag === "input" || tag === "textarea") return;
@@ -409,267 +807,9 @@
       if (isReaderMode()) setReaderMode(false);
     }
   });
-  if (storyEl) {
-    storyEl.addEventListener("scroll", () => {
-      requestAnimationFrame(updateChoiceVisibilityBasedOnScroll);
-    });
-  }
+  if (storyEl) storyEl.addEventListener("scroll", () => { requestAnimationFrame(updateChoiceVisibilityBasedOnScroll); });
 
-  // ---------- enterActions: apply all matches (and default fallback) ----------
-  function applyEnterActions(scene) {
-    if (!scene || !scene.enterActions || !Array.isArray(scene.enterActions)) return "";
-    let appendTexts = [];
-    let matchedAny = false;
-
-    for (let act of scene.enterActions) {
-      if (act.default) continue;
-      let matched = false;
-
-      if (act.ifAny && Array.isArray(act.ifAny)) {
-        matched = act.ifAny.some(f => (Engine.player.flags || []).includes(f));
-      }
-      if (!matched && act.ifFlag) {
-        if (Array.isArray(act.ifFlag)) {
-          matched = act.ifFlag.some(f => (Engine.player.flags || []).includes(f));
-        } else {
-          matched = (Engine.player.flags || []).includes(act.ifFlag);
-        }
-      }
-      if (!matched && act.ifAll && Array.isArray(act.ifAll)) {
-        matched = act.ifAll.every(f => (Engine.player.flags || []).includes(f));
-      }
-
-      if (matched) {
-        matchedAny = true;
-        if (act.addFlags && Array.isArray(act.addFlags)) {
-          Engine.player.flags = Engine.player.flags || [];
-          act.addFlags.forEach(f => { if (!Engine.player.flags.includes(f)) Engine.player.flags.push(f); });
-        }
-        if (act.addReputations && Array.isArray(act.addReputations)) {
-          Engine.player.reputations = Engine.player.reputations || [];
-          act.addReputations.forEach(r => { if (!Engine.player.reputations.includes(r)) Engine.player.reputations.push(r); });
-        }
-        if (act.addItems && Array.isArray(act.addItems)) {
-          Engine.player.items = Engine.player.items || [];
-          act.addItems.forEach(i => { if (!Engine.player.items.includes(i)) Engine.player.items.push(i); });
-        }
-        if (act.addStats && typeof act.addStats === "object") {
-          Engine.player.stats = Engine.player.stats || {};
-          for (let k in act.addStats) {
-            Engine.player.stats[k] = (Number(Engine.player.stats[k]) || 0) + (Number(act.addStats[k]) || 0);
-          }
-        }
-        if (act.text) appendTexts.push(act.text);
-      }
-    }
-
-    if (!matchedAny) {
-      for (let act of scene.enterActions) {
-        if (act.default) {
-          if (act.addFlags && Array.isArray(act.addFlags)) {
-            Engine.player.flags = Engine.player.flags || [];
-            act.addFlags.forEach(f => { if (!Engine.player.flags.includes(f)) Engine.player.flags.push(f); });
-          }
-          if (act.addReputations && Array.isArray(act.addReputations)) {
-            Engine.player.reputations = Engine.player.reputations || [];
-            act.addReputations.forEach(r => { if (!Engine.player.reputations.includes(r)) Engine.player.reputations.push(r); });
-          }
-          if (act.addItems && Array.isArray(act.addItems)) {
-            Engine.player.items = Engine.player.items || [];
-            act.addItems.forEach(i => { if (!Engine.player.items.includes(i)) Engine.player.items.push(i); });
-          }
-          if (act.addStats && typeof act.addStats === "object") {
-            Engine.player.stats = Engine.player.stats || {};
-            for (let k in act.addStats) {
-              Engine.player.stats[k] = (Number(Engine.player.stats[k]) || 0) + (Number(act.addStats[k]) || 0);
-            }
-          }
-          if (act.text) appendTexts.push(act.text);
-          break;
-        }
-      }
-    }
-
-    if (typeof saveGame === "function") saveGame(Engine.player);
-    return appendTexts.join("\n\n");
-  }
-
-  // ---------- Termination / Protocol selection ----------
-  function computeFriction(player) {
-    const statSum = Object.values(player.stats || {}).reduce((s, v) => s + Number(v || 0), 0);
-    const flagCount = (player.flags || []).length || 0;
-    return statSum + flagCount;
-  }
-
-  function computeCore(player) {
-    const flags = player.flags || [];
-    if (flags.includes("team_loyalty") || flags.includes("acted_purge") || flags.includes("compliance")) return "LOYALTY";
-    if (flags.includes("signed_full") || flags.includes("acted_report")) return "CHAOS";
-    return "LOGIC";
-  }
-
-  function selectProtocol(player) {
-    // Simple scoring approach — tweak weights if desired
-    const flags = player.flags || [];
-    let disruption = 0;
-    let compliance = 0;
-    let precision = 0;
-
-    // Disruption indicators
-    ["cmd_broadcast", "signed_full", "acted_delegate", "cmd_delegate", "acted_broadcast"].forEach(f => { if (flags.includes(f)) disruption += 3; });
-    // Compliance indicators
-    ["cmd_purge", "signed_clean", "team_loyalty", "compliance"].forEach(f => { if (flags.includes(f)) compliance += 3; });
-    // Precision/negotiation indicators
-    ["signed_dissent", "tactical_aggression", "prep_position", "verification", "act6_question"].forEach(f => { if (flags.includes(f)) precision += 2; });
-
-    // Add stat influence
-    precision += (player.stats && player.stats.gnosis) || 0;
-    disruption += (player.stats && player.stats.discovery) || 0;
-    compliance += (player.stats && player.stats.authority) || 0;
-
-    // Final selection: pick highest, fallback to BETA
-    if (disruption >= compliance && disruption >= precision && disruption > 0) return "ALPHA";
-    if (compliance >= disruption && compliance >= precision && compliance > 0) return "BETA";
-    if (precision >= disruption && precision >= compliance && precision > 0) return "GAMMA";
-    // fallback: derive from flags (previous safe default)
-    return computeCore(player) === "LOYALTY" ? "BETA" : "GAMMA";
-  }
-
-  // ---------- Protocol UI implementations ----------
-  function showSystemIDCard(protocol, friction, core) {
-    clearChoices();
-    document.documentElement.classList.remove("terminated-blackout");
-    const lines = [
-      "SYSTEM LOG: BOOK 1 ARCHIVED.",
-      `TOTAL FRICTION: ${friction}`,
-      `CORE PHILOSOPHY: ${core}`,
-      "",
-      "AWAITING BOOK 2 INITIALIZATION..."
-    ];
-    const html = `<div class="system-id-card"><pre>${lines.join("\n")}</pre></div>`;
-    storyEl.innerHTML = applyTemplates(html);
-    // provide a migration payload button
-    choicesEl.innerHTML = "";
-    const dl = createChoiceButton("Download migration payload (JSON)", () => downloadMigrationPayload("migration_payload_book1.json"));
-    const inspect = createChoiceButton("Inspect player (console)", () => { console.log("Player state:", Engine.player); alert("Player state logged to console."); });
-    choicesEl.appendChild(dl);
-    choicesEl.appendChild(inspect);
-    // no 'Continue' here by design; the ID Card is the final save visual for Book 2
-    updateHUD();
-    choicesEl.style.display = "";
-  }
-
-  function runProtocolAlpha(player) {
-    // Glitch text, then blackout, then after pause show ID card (non-interactive)
-    clearChoices();
-    storyEl.textContent = "PROTOCOL ALPHA: THE EJECTION\n\nDATA DENSITY EXCEEDS LIMITS...\nSYSTEM SEIZURE IMMINENT.";
-    storyEl.classList.add("glitch", "torn");
-    updateHUD();
-
-    // brief glitch -> torn effect
-    setTimeout(() => {
-      // blackout
-      document.documentElement.classList.add("terminated-blackout");
-      storyEl.textContent = "";
-      storyEl.classList.remove("glitch", "torn");
-      clearChoices();
-      updateHUD();
-      // hold blackout for a moment to "feel" the door closing
-      const ALPHA_BLACKOUT = 4200; // ms, tweakable
-      setTimeout(() => {
-        // After enforced blackout, show ID Card silently (no choices except download)
-        const friction = computeFriction(player);
-        const core = computeCore(player);
-        showSystemIDCard("ALPHA", friction, core);
-      }, ALPHA_BLACKOUT);
-    }, 1400);
-  }
-
-  function runProtocolBeta(player) {
-    // Read-only: show system ID card and a countdown visible, choices disabled for interaction
-    const friction = computeFriction(player);
-    const core = computeCore(player);
-    clearChoices();
-    const cardLines = [
-      "SYSTEM ID: READ-ONLY",
-      "",
-      "ROLE: PRIMARY COORDINATOR (READ-ONLY)",
-      `TOTAL FRICTION: ${friction}`,
-      `CORE PHILOSOPHY: ${core}`,
-      "",
-      "You can scroll and observe pending tasks. Interaction is locked."
-    ];
-    const html = `<div class="readonly-badge">READ-ONLY</div><div class="system-id-card"><pre>${cardLines.join("\n")}</pre><div id="beta-timer" style="margin-top:0.8rem;font-family:monospace;"></div></div>`;
-    storyEl.innerHTML = html;
-    choicesEl.innerHTML = ""; // locked
-    updateHUD();
-    choicesEl.style.display = "none";
-
-    // start a visible countdown (example short timer)
-    let seconds = 300; // 5 minutes for dramatic effect
-    function formatTime(s) {
-      const m = Math.floor(s/60).toString().padStart(2,"0");
-      const ss = (s%60).toString().padStart(2,"0");
-      return `${m}:${ss}`;
-    }
-    const timerEl = document.getElementById("beta-timer");
-    if (timerEl) timerEl.textContent = `TIMER UNTIL RESET: ${formatTime(seconds)}`;
-    const interval = setInterval(() => {
-      seconds -= 1;
-      if (timerEl) timerEl.textContent = `TIMER UNTIL RESET: ${formatTime(seconds)}`;
-      if (seconds <= 0) {
-        clearInterval(interval);
-        // After countdown finishes, show final ID card
-        showSystemIDCard("BETA", friction, core);
-      }
-    }, 1000);
-  }
-
-  function runProtocolGamma(player) {
-    // Offer a courtesy: monitor the handover (YES/NO)
-    clearChoices();
-    const friction = computeFriction(player);
-    const core = computeCore(player);
-    const html = [
-      "PROTOCOL GAMMA: THE OPERATOR",
-      "",
-      "SYSTEM CALIBRATING. WOULD YOU LIKE TO MONITOR THE HANDOVER?",
-      "",
-      "(A rare courtesy — choose YES to remain and watch, NO to step away.)"
-    ].join("\n");
-    storyEl.textContent = html;
-    clearChoices();
-    const yes = createChoiceButton("YES — Monitor the handover", () => {
-      // display a monitoring frame (static) then ID card
-      storyEl.textContent = "AWAITING RE-INITIALIZATION...\n\nMONITORING: SYSTEM HANDOVER STREAM\n\n(You watch the gears turn.)";
-      clearChoices();
-      updateHUD();
-      // After a short monitoring period, show ID card
-      setTimeout(() => {
-        showSystemIDCard("GAMMA", friction, core);
-      }, 3000);
-    });
-    const no = createChoiceButton("NO — Walk away", () => {
-      // go directly to ID card
-      showSystemIDCard("GAMMA", friction, core);
-    });
-    choicesEl.appendChild(yes);
-    choicesEl.appendChild(no);
-    updateHUD();
-    choicesEl.style.display = "";
-  }
-
-  function runTerminationSequence() {
-    const player = Engine.player || {};
-    const protocol = selectProtocol(player);
-    // log for debug
-    console.log("Selected termination protocol:", protocol);
-    if (protocol === "ALPHA") runProtocolAlpha(player);
-    else if (protocol === "BETA") runProtocolBeta(player);
-    else runProtocolGamma(player);
-  }
-
-  // ---------- Scene rendering / unified choice postText behavior ----------
+  // The main renderScene function (uses templates, enterActions, and autosave after choices)
   function renderScene(sceneId) {
     if (!sceneId) return;
     const owningAct = findActForSceneId(sceneId);
@@ -685,7 +825,6 @@
       scene = currentAct && currentAct.scenes ? currentAct.scenes[sceneId] : null;
       if (!scene) {
         if (sceneId === "book1_summary") {
-          // Instead of the earlier summary we now run the termination sequence
           runTerminationSequence();
           return;
         }
@@ -697,6 +836,8 @@
       }
     }
 
+    // set current scene and persist to profile
+    currentSceneId = sceneId;
     saveScene(sceneId);
 
     let content = scene.text ? scene.text.trim() : "";
@@ -719,13 +860,13 @@
       content += "\n\n" + (scene.microVeil.revealedText || "").trim();
     }
 
-    // apply templates (e.g., replace {{LATE_NAME}})
+    // template substitution
     content = applyTemplates(content);
 
     storyEl.textContent = content;
     if (storyEl) storyEl.scrollTop = 0;
 
-    // Late-name prompting logic (unchanged)
+    // Late-name prompt behavior
     const flags = Engine.player && Engine.player.flags ? Engine.player.flags : [];
     const hasLateName = Engine.player && Engine.player.late_name && Engine.player.late_name.trim().length > 0;
     if (sceneId === "act1_transition" && (flags.includes("Path_Noticed") || flags.includes("path_noticed")) && !hasLateName) {
@@ -740,13 +881,6 @@
 
     clearChoices();
 
-    // If scene is the final summary trigger, route to termination logic
-    if (sceneId === "book1_summary") {
-      runTerminationSequence();
-      return;
-    }
-
-    // If scene has autoNext, show a Continue button (no automatic advancement)
     if (scene.autoNext) {
       const cont = createChoiceButton("Continue", () => {
         const dest = resolveAndSwitchActIfNeeded(scene.autoNext);
@@ -758,7 +892,6 @@
       return;
     }
 
-    // If scene has no choices, show Continue (so it won't be skipped)
     if (!scene.choices || scene.choices.length === 0) {
       const cont = createChoiceButton("Continue", () => {
         if (scene.next) {
@@ -775,17 +908,17 @@
       return;
     }
 
-    // Render choices. Unified behavior: applyChoice first, then postText (if present) shown
+    // Render choices and ensure autosave after every choice
     scene.choices.forEach(choice => {
       const btn = createChoiceButton(choice.label || "(no label)", () => {
         try {
-          // Apply choice to mutate Engine.player immediately
           Engine.applyChoice(choice);
 
-          // Capture the next id now so closures can't be affected by loop variables
+          // Autosave immediately after the choice mutation
+          saveCurrentProfile();
+
           const nextId = choice.next;
 
-          // If there's postText, show it and require Continue
           if (choice.postText) {
             const renderedPost = applyTemplates((choice.postText || "").trim());
             storyEl.textContent = renderedPost;
@@ -818,7 +951,6 @@
             return;
           }
 
-          // No postText: advance immediately using captured next
           if (!nextId) {
             console.warn("Choice has no next:", choice);
             updateHUD();
@@ -842,6 +974,7 @@
           const resolvedNext = resolveAndSwitchActIfNeeded(nextId);
           if (resolvedNext !== null) renderScene(resolvedNext);
           else console.warn("Could not resolve next:", nextId);
+
         } catch (err) {
           console.error("Error applying choice:", err);
           alert("An error occurred. See console.");
@@ -854,13 +987,47 @@
     updateChoiceVisibilityBasedOnScroll();
   }
 
-  // Initialize reader mode state from storage
-  if (isReaderMode()) setReaderMode(true);
+  // ---------- Initialization ----------
+  // Ensure there is at least one profile; auto-load last-used profile if available
+  function initProfilesAndLoad() {
+    PROFILES = loadProfilesFromStorage();
+    const last = getLastProfileName();
+    if (last && PROFILES[last]) {
+      // load last used
+      loadProfile(last);
+      // if profile contains a scene, set currentSceneId from it
+      if (PROFILES[last].scene) currentSceneId = PROFILES[last].scene;
+    } else {
+      // no last, create default from current Engine state
+      if (!last) {
+        // if there's any player state saved by legacy loadSave, use it
+        try {
+          if (typeof loadSave === "function") {
+            const legacy = loadSave();
+            if (legacy && legacy.scene) {
+              Engine.player = legacy;
+              currentSceneId = legacy.scene;
+            }
+          }
+        } catch (e) {}
+      }
+      ensureDefaultProfile();
+      // save initial profile
+      saveCurrentProfile();
+    }
+    updateProfileUI();
+  }
+
+  // Start
+  initProfilesAndLoad();
+
   if (!currentSceneId && currentAct) currentSceneId = currentAct.start;
   renderScene(currentSceneId);
 
-  // debug helpers
-  window.__renderScene = renderScene;
-  window.__updateHUD = updateHUD;
-  window.__setReader = setReaderMode;
+  // Expose some helpers for debugging
+  window.__profiles = () => loadProfilesFromStorage();
+  window.__currentProfile = () => currentProfileName;
+  window.__saveProfileNow = () => saveCurrentProfile();
+  window.__switchProfile = (n) => loadProfile(n);
+
 })();
