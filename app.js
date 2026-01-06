@@ -528,7 +528,7 @@
   // -------------------------
   // Core rendering and choice handling (single place) — autosave after every choice
   // -------------------------
-  let currentAct = window.ACT1 || null;
+  let currentAct = window.act1 || null;
   let currentSceneId = (currentAct && currentAct.start) || null;
 
   function saveScene(sceneId) {
