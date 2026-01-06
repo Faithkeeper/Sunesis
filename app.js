@@ -1,19 +1,14 @@
 // app.js — Multiple save profiles, autosave after every choice, Continue loads last-used profile
-// - Profiles stored in localStorage under "apokalypsis_profiles_v1" (object of name->profile)
-// - Last used profile name stored under "apokalypsis_last_profile_v1"
-// - Autosave (saveCurrentProfile) invoked after every choice application and on important changes
-// - On startup, app attempts to load the last-used profile automatically (if present)
-// - Provides a small profile UI in the title area to create/switch/delete profiles
-//
-// This file is a drop-in replacement for your previous app.js. It preserves:
-// - enterActions multi-match behavior
-// - reader-mode and scroll-based choice reveal
-// - termination sequence (ALPHA/BETA/GAMMA)
-// - template substitution {{LATE_NAME}} for identity
+// Fixed: restart button now works reliably with profile-aware restart logic
 //
 // Notes:
-// - If you already have saveGame/loadSave functions, this implementation still writes to them
-//   where appropriate but uses its own profile store as canonical for multi-profile support.
+// - Profiles stored in localStorage under "apokalypsis_profiles_v1"
+// - Last used profile name stored under "apokalypsis_last_profile_v1"
+// - Autosave after every choice (saveCurrentProfile)
+// - "Continue" behavior loads last-used profile on startup
+// - Restart button presents profile-aware options: restart current profile (act) or restart entire game (clear all profiles)
+//
+// This is a full app.js file intended to replace the previous version in your build.
 
 (function () {
   const storyEl = document.getElementById("story");
@@ -79,16 +74,8 @@
   let PROFILES = loadProfilesFromStorage();
   let currentProfileName = getLastProfileName() || null;
 
-  function ensureDefaultProfile() {
-    if (!currentProfileName) {
-      const defaultName = "Default";
-      if (!PROFILES[defaultName]) {
-        PROFILES[defaultName] = createProfileObjectFromEngine(defaultName);
-        saveProfilesToStorage(PROFILES);
-      }
-      currentProfileName = defaultName;
-      setLastProfileName(defaultName);
-    }
+  function cloneDeep(obj) {
+    return JSON.parse(JSON.stringify(obj || {}));
   }
 
   function createProfileObjectFromEngine(displayName) {
@@ -100,8 +87,9 @@
     };
   }
 
-  function cloneDeep(obj) {
-    return JSON.parse(JSON.stringify(obj || {}));
+  function saveProfilesNow() {
+    PROFILES = loadProfilesFromStorage();
+    saveProfilesToStorage(PROFILES);
   }
 
   function saveCurrentProfile() {
@@ -129,18 +117,9 @@
       if (!profiles[name]) return false;
       const profile = profiles[name];
       Engine.player = cloneDeep(profile.player || {});
-      // attempt to set currentAct based on Engine.player.act if present
-      if (Engine.player && Engine.player.act) {
-        const actKey = "act" + Number(Engine.player.act);
-        if (window[("ACT" + Engine.player.act).toUpperCase()]) {
-          // nothing required; renderScene handles act lookup
-        }
-      }
       currentProfileName = name;
       setLastProfileName(name);
-      // set the currentSceneId to the saved scene if present (so renderScene picks it up)
       if (profile.scene) currentSceneId = profile.scene;
-      // persist (update timestamp)
       profiles[name].updated_at = new Date().toISOString();
       saveProfilesToStorage(profiles);
       updateProfileUI();
@@ -169,7 +148,6 @@
     if (!PROFILES[name]) return false;
     delete PROFILES[name];
     saveProfilesToStorage(PROFILES);
-    // if deleted current, pick another
     if (currentProfileName === name) {
       const keys = Object.keys(PROFILES);
       if (keys.length > 0) {
@@ -218,7 +196,7 @@
       profiles.forEach(p => {
         const opt = document.createElement("option");
         opt.value = p.name;
-        opt.textContent = p.name + " ";
+        opt.textContent = p.name;
         if (currentProfileName === p.name) opt.selected = true;
         select.appendChild(opt);
       });
@@ -226,10 +204,9 @@
     select.addEventListener("change", (ev) => {
       const val = ev.target.value;
       if (val) {
-        if (confirm(`Switch to profile "${val}"? Unsaved changes in current profile will be saved automatically.`)) {
+        if (confirm(`Switch to profile "${val}"? Current profile will be autosaved.`)) {
           saveCurrentProfile();
           loadProfile(val);
-          // reload scene from profile
           if (currentSceneId) renderScene(currentSceneId);
         } else {
           updateProfileUI();
@@ -264,7 +241,6 @@
       if (!currentProfileName) { alert("No profile selected."); return; }
       if (!confirm(`Delete profile "${currentProfileName}"? This cannot be undone.`)) return;
       deleteProfile(currentProfileName);
-      // after deletion, reload profiles and pick one
       const keys = Object.keys(PROFILES);
       if (keys.length > 0) loadProfile(keys[0]);
       renderScene(currentSceneId);
@@ -394,7 +370,7 @@
   }
 
   // -------------------------
-  // Termination logic (protocols) — same as previous implementation but uses saveCurrentProfile when creating ID card
+  // Termination logic (protocols)
   // -------------------------
   function computeFriction(player) {
     const statSum = Object.values(player.stats || {}).reduce((s, v) => s + Number(v || 0), 0);
@@ -563,7 +539,6 @@
       }
       saveGame({ ...Engine.player, scene: sceneId });
     }
-    // keep the profile scene sync too
     try {
       if (currentProfileName) {
         PROFILES = loadProfilesFromStorage();
@@ -668,7 +643,9 @@
           }
           if (act.addStats && typeof act.addStats === "object") {
             Engine.player.stats = Engine.player.stats || {};
-            for (let k in act.addStats) Engine.player.stats[k] = (Number(Engine.player.stats[k]) || 0) + (Number(act.addStats[k]) || 0);
+            for (let k in act.addStats) {
+              Engine.player.stats[k] = (Number(Engine.player.stats[k]) || 0) + (Number(act.addStats[k]) || 0);
+            }
           }
           if (act.text) appendTexts.push(act.text);
           break;
@@ -677,7 +654,6 @@
     }
 
     if (typeof saveGame === "function") saveGame(Engine.player);
-    // also persist profile state after enterActions in case they added flags/items/stats
     saveCurrentProfile();
     return appendTexts.join("\n\n");
   }
@@ -769,7 +745,7 @@
     }
   }
 
-  // Reader mode helpers (unchanged)
+  // Reader mode helpers
   const READER_KEY = "apokalypsis_reader_mode";
   function isReaderMode() {
     try { return localStorage.getItem(READER_KEY) === "1"; } catch (e) { return false; }
@@ -786,7 +762,6 @@
         document.documentElement.classList.remove("reader-mode");
         if (readerToggleBtn) readerToggleBtn.classList.remove("active");
         localStorage.removeItem(READER_KEY);
-        // allow JS to manage choices visibility
         updateChoiceVisibilityBasedOnScroll();
         const first = choicesEl.querySelector(".choice");
         if (first) first.focus();
@@ -847,7 +822,6 @@
       }
     }
 
-    // set current scene and persist to profile
     currentSceneId = sceneId;
     saveScene(sceneId);
 
@@ -871,13 +845,11 @@
       content += "\n\n" + (scene.microVeil.revealedText || "").trim();
     }
 
-    // template substitution
     content = applyTemplates(content);
 
     storyEl.textContent = content;
     if (storyEl) storyEl.scrollTop = 0;
 
-    // Late-name prompt behavior
     const flags = Engine.player && Engine.player.flags ? Engine.player.flags : [];
     const hasLateName = Engine.player && Engine.player.late_name && Engine.player.late_name.trim().length > 0;
     if (sceneId === "act1_transition" && (flags.includes("Path_Noticed") || flags.includes("path_noticed")) && !hasLateName) {
@@ -919,7 +891,6 @@
       return;
     }
 
-    // Render choices and ensure autosave after every choice
     scene.choices.forEach(choice => {
       const btn = createChoiceButton(choice.label || "(no label)", () => {
         try {
@@ -998,44 +969,129 @@
     updateChoiceVisibilityBasedOnScroll();
   }
 
-  // ---------- Initialization ----------
-  // Ensure there is at least one profile; auto-load last-used profile if available
+  // -------------------------
+  // Restart logic (profile-aware) — FIX: ensure restart button reliably attached after init
+  // -------------------------
+  function resetPlayerToDefaults(desiredAct = 1) {
+    const defaultPlayer = {
+      stats: { sunesis: 0, gnosis: 0, skepticism: 0, authority: 0, discovery: 0 },
+      flags: [], reputations: [], items: [], history: [], alignment: null, act: desiredAct, late_name: null, created_at: new Date().toISOString()
+    };
+    if (Engine && Engine.player) {
+      for (const k of Object.keys(Engine.player)) delete Engine.player[k];
+      Object.assign(Engine.player, defaultPlayer);
+    } else {
+      window.Engine.player = defaultPlayer;
+    }
+    if (typeof saveGame === "function") saveGame(Engine.player);
+  }
+
+  function restartGamePrompt() {
+    // Profile-aware restart dialog
+    try {
+      const actNum = currentAct && currentAct.id && /^act([1-6])$/.test(currentAct.id) ? Number(currentAct.id.replace("act", "")) : (Engine.player && Engine.player.act) || 1;
+      const hasMultipleActs = !!(ACTS.act2);
+
+      if (!currentProfileName) {
+        // no profile — simple restart confirmation (clear any legacy save)
+        if (!confirm("Restart the game from the beginning? This will clear your save and return to Act 1.")) return;
+        // clear profiles entirely
+        PROFILES = {};
+        saveProfilesToStorage(PROFILES);
+        setLastProfileName(null);
+        resetPlayerToDefaults(1);
+        currentAct = ACTS.act1;
+        currentSceneId = currentAct.start;
+        createProfile("Default");
+        loadProfile("Default");
+        renderScene(currentSceneId);
+        return;
+      }
+
+      // Offer options: restart current profile act or restart entire game
+      const promptText = `Restart options for profile "${currentProfileName}":\n1 = Restart current act (${actNum}) from its beginning (clears progress in this profile's act)\n2 = Restart the entire game (clear all profiles)\nEnter 1 or 2 (Cancel to abort)`;
+      const choice = window.prompt(promptText, "1");
+      if (choice === null) return;
+      if (choice.trim() === "1") {
+        if (!confirm(`Restart from the beginning of Act ${actNum} in profile "${currentProfileName}"? This will clear saved progress for this profile's act.`)) return;
+        // reset player to defaults but keep profile name
+        resetPlayerToDefaults(actNum);
+        // overwrite profile with fresh default player (act set to actNum)
+        PROFILES = loadProfilesFromStorage();
+        PROFILES[currentProfileName] = {
+          player: cloneDeep(Engine.player),
+          scene: (ACTS["act" + actNum] ? ACTS["act" + actNum].start : currentSceneId),
+          updated_at: new Date().toISOString(),
+          displayName: currentProfileName
+        };
+        saveProfilesToStorage(PROFILES);
+        setLastProfileName(currentProfileName);
+        if (ACTS["act" + actNum]) {
+          currentAct = ACTS["act" + actNum];
+          currentSceneId = currentAct.start;
+        } else {
+          currentSceneId = PROFILES[currentProfileName].scene;
+        }
+        renderScene(currentSceneId);
+        return;
+      }
+      if (choice.trim() === "2") {
+        if (!confirm("Restart the entire game from Act 1? This will clear ALL profiles.")) return;
+        PROFILES = {};
+        saveProfilesToStorage(PROFILES);
+        setLastProfileName(null);
+        resetPlayerToDefaults(1);
+        createProfile("Default");
+        loadProfile("Default");
+        currentAct = ACTS.act1;
+        currentSceneId = currentAct.start;
+        renderScene(currentSceneId);
+        return;
+      }
+    } catch (err) {
+      console.error("Error in restartGamePrompt:", err);
+      alert("Restart failed. See console for details.");
+    }
+  }
+
+  // -------------------------
+  // Initialization
+  // -------------------------
   function initProfilesAndLoad() {
     PROFILES = loadProfilesFromStorage();
     const last = getLastProfileName();
     if (last && PROFILES[last]) {
-      // load last used
       loadProfile(last);
-      // if profile contains a scene, set currentSceneId from it
       if (PROFILES[last].scene) currentSceneId = PROFILES[last].scene;
     } else {
-      // no last, create default from current Engine state
-      if (!last) {
-        // if there's any player state saved by legacy loadSave, use it
-        try {
-          if (typeof loadSave === "function") {
-            const legacy = loadSave();
-            if (legacy && legacy.scene) {
-              Engine.player = legacy;
-              currentSceneId = legacy.scene;
-            }
+      // If there is a legacy saveLoad function, try it
+      try {
+        if (typeof loadSave === "function") {
+          const legacy = loadSave();
+          if (legacy && legacy.scene) {
+            Engine.player = legacy;
+            currentSceneId = legacy.scene;
           }
-        } catch (e) {}
+        }
+      } catch (e) {}
+      // ensure there is at least one profile
+      if (!Object.keys(PROFILES).length) {
+        createProfile("Default");
+        loadProfile("Default");
       }
-      ensureDefaultProfile();
-      // save initial profile
-      saveCurrentProfile();
     }
     updateProfileUI();
   }
 
-  // Start
+  // Start initialization, then attach restart button listener AFTER init to ensure it works
   initProfilesAndLoad();
+
+  if (restartBtn) restartBtn.addEventListener("click", restartGamePrompt);
 
   if (!currentSceneId && currentAct) currentSceneId = currentAct.start;
   renderScene(currentSceneId);
 
-  // Expose some helpers for debugging
+  // Expose helpers for debugging
   window.__profiles = () => loadProfilesFromStorage();
   window.__currentProfile = () => currentProfileName;
   window.__saveProfileNow = () => saveCurrentProfile();
