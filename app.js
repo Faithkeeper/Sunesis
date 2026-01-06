@@ -514,16 +514,16 @@
     else runProtocolGamma(player);
   }
 
-// -------------------------
-  // Act Registry
+/// -------------------------
+  // Act Registry (Fixed casing mismatch)
   // -------------------------
   const ACTS = {
-    act1: window.act1,
-    act2: window.act2,
-    act3: window.act3,
-    act4: window.act4,
-    act5: window.act5,
-    act6: window.act6
+    act1: window.act1 || window.ACT1,
+    act2: window.act2 || window.ACT2,
+    act3: window.act3 || window.ACT3,
+    act4: window.act4 || window.ACT4,
+    act5: window.act5 || window.ACT5,
+    act6: window.act6 || window.ACT6
   };
   // -------------------------
   // Core rendering and choice handling (single place) — autosave after every choice
