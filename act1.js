@@ -11,33 +11,47 @@ window.ACT1 = {
     act1_scene1: {
       id: "act1_scene1",
       text: `
-You didn’t come here expecting anything to change.
+You didn’t come here expecting anything to happen.
 
-It was just another gathering — chairs arranged too closely, voices blending into a low, unfocused hum. You’re half-listening, half-elsewhere, your thoughts drifting the way they always do when something feels familiar enough to be ignored.
+That’s the problem.
 
-The speaker’s voice fades in and out of your awareness.
-Not because it’s boring — but because you’ve heard variations of it before.
+The room is too warm, chairs packed too close together, the air filled with the low murmur of people waiting for something they don’t quite believe will arrive. You’ve been in rooms like this before — places where words circulate but nothing changes.
 
-Promises. Explanations. Words that sound important but somehow never touch anything real.
+You’re already planning your exit.
 
-Then the tone shifts.
+The speaker is talking, but your attention drifts. Not out of boredom — out of familiarity. Promises tend to sound the same when you’ve heard enough of them.
 
-Not louder.
-Not dramatic.
-Just… precise.
+Then something interrupts the rhythm.
+
+Not volume.
+ Not emotion.
+
+Precision.
 
 “For a moment,” the voice says,
-“forget where you are.”
+ “forget where you are.”
 
-You almost do.
+You don’t mean to listen.
+ You do anyway.
 
-“This isn’t about joining anything. It isn’t about labels, history, or where you think you belong.”
+“This isn’t about joining anything,” the speaker continues.
+ “It isn’t about belief, history, or the story you tell yourself about who you are.”
 
-A pause.
+A pause. Long enough to feel deliberate.
 
 “This is about becoming aware.”
 
-You feel a subtle pressure behind your thoughts. It’s not a headache; it’s a pull. How do you respond to this internal "tug"?`,
+The word lands strangely — not in your thoughts, but behind them.
+
+It’s subtle. A pressure. Like realizing you’ve been holding tension you never consciously chose.
+
+You have the unsettling sense that something is waiting for your response.
+
+Not the speaker.
+
+Something else.
+
+How do you respond? (You are not choosing who you are — only where you look.)`,
       choices: [
         {
           id: "focus",
@@ -46,7 +60,9 @@ You feel a subtle pressure behind your thoughts. It’s not a headache; it’s a
           flags: ["veil_seeded"],
           postText: `[The edges of the room blur. The speaker’s voice stops being words and starts being a physical vibration in your chest. You aren't thinking anymore—you are just perceiving.]
 
-Feedback: "The world feels vivid, almost painfully sharp."`,
+You turn your attention inward instead of away.
+
+The room sharpens. Sounds fall into place. The speaker’s voice feels uncomfortably direct."`,
           next: "act1_scene1b"
         },
         {
@@ -55,16 +71,20 @@ Feedback: "The world feels vivid, almost painfully sharp."`,
           stats: { gnosis: 1 },
           postText: `[You ignore the 'feeling' and dissect the sentence structure. You recognize the rhetorical patterns. You aren't falling for the mood; you are mapping the blueprint of what he's trying to build.]
 
-Feedback: "The mystery recedes, replaced by the cold clarity of a puzzle being solved."`,
+You pull the statement apart, testing it for structure, intent, pattern.
+
+You recognize familiar ideas rearranged into something more deliberate. This isn’t random speech — it’s constructed.`,
           next: "act1_scene1b"
         },
         {
           id: "guard",
           label: "Guard your mind",
           stats: { skepticism: 1 },
-          postText: `[You anchor yourself to the hard plastic of your chair. You deliberately notice the hum of the air conditioner and the cough of someone in the back row. You refuse the 'pull' and maintain your perimeter.]
+          postText: `[You deliberately notice the hum of the air conditioner and the cough of someone in the back row.]
 
-Feedback: "The speaker’s influence stops at the edge of your skin. You remain yourself."`,
+You resist the pull. You’ve heard convincing people before.
+
+You anchor yourself in what’s tangible: the chair, the floor, the room. Whatever this is, you refuse to let it decide for you.`,
           next: "act1_scene1b"
         }
       ]
@@ -73,24 +93,35 @@ Feedback: "The speaker’s influence stops at the edge of your skin. You remain 
     act1_scene1b: {
       id: "act1_scene1b",
       text: `
-“As strange as it may sound,” the voice continues,
-“some of you already know there’s more to you than what you’ve been living.”
+The speaker continues, but something has already shifted.
 
-Your attention sharpens.
-The room feels quieter, even though nothing has changed.
+“As strange as it may sound,” the voice says,
+“some of you already sense there’s more to you than what you’ve been living.”
 
-“No one is asking you to prove anything.
-No one is forcing you forward.”
+Your breathing slows without permission.
 
-Another pause — longer this time.
+“No one is asking you to prove anything,” the speaker adds.
+“No one is forcing you forward.”
 
-“But if something in you is responding right now…
-don’t ignore it.”
+Another pause — heavier this time.
 
-You realize your breathing has slowed.
+“But if something in you is responding right now…”
 
-“This moment,” the voice concludes,
+The pressure intensifies, just slightly.
+
+“…don’t ignore it.”
+
+You realize something that unsettles you more than the words themselves:
+
+If you walk away from this moment, it will follow you anyway.
+
+“This moment,” the speaker concludes,
 “is a threshold.”
+
+The word stays with you.
+
+Not like a metaphor.
+Like a warning.
 
 How do you respond?`,
       choices: [
@@ -100,6 +131,8 @@ How do you respond?`,
           flags: ["coord_observer"],
           postText: `[The room empties around you. You become a 'still point.']
 
+You tell yourself this will pass.
+
 The Speaker makes eye contact with you specifically. A silent acknowledgement that you are holding the space.`,
           next: "act1_scene2"
         },
@@ -107,7 +140,9 @@ The Speaker makes eye contact with you specifically. A silent acknowledgement th
           id: "stand",
           label: "Stand — even without understanding why",
           flags: ["coord_disruptor"],
-          postText: `[You feel the eyes of everyone nearby. By standing, you’ve signaled that the 'Veil' has lifted.]
+          postText: `You don’t understand the impulse. You obey it anyway.
+
+You feel the eyes of everyone nearby. By standing, you’ve signaled that the 'Veil' has lifted.
 
 The Speaker’s voice takes on a sharper, more direct edge when he looks your way.`,
           next: "act1_scene2"
@@ -117,7 +152,9 @@ The Speaker’s voice takes on a sharper, more direct edge when he looks your wa
           label: "Observe carefully",
           flags: ["coord_ghost"],
           stats: { sunesis: 2 },
-          postText: `[You are the only one noticing the reactions of the crowd rather than the speaker.]
+          postText: `You watch the room. The speaker. The people reacting — and the ones who aren’t.
+		  
+You are the only one noticing the reactions of the crowd rather than the speaker.
 
 You notice a person in the back row watching the crowd just like you are. You’ve found a peer.`,
           next: "act1_scene2"
@@ -128,6 +165,8 @@ You notice a person in the back row watching the crowd just like you are. You’
           flags: ["coord_skeptic"],
           stats: { skepticism: 2 },
           postText: `[You step out into the cold air while the 'spell' is still active inside.]
+
+You decide you’ll deal with this on your own terms.
 
 The sudden silence of the street feels like a physical blow. You’ve maintained your independence.`,
           next: "act1_scene2"
@@ -149,9 +188,28 @@ And yet—
 
 Something has shifted.
 
-You become aware of your own thoughts in a way that feels… exposed. As if a layer you didn’t know existed has thinned.
+You are back in the vehicle, but the hum of the engine feels like it’s vibrating at the same frequency as your own thoughts. Outside, the city is a blur of gray. Inside, the air is thick with a silence that feels like a demand.
 
-Why did that feel different?
+[MICRO-INTERACTION] The vehicle lurches over a rough patch of road, and the screen in your hand tilts.`,
+	choices: [
+			{ 
+				id: "focus", 
+				label: "Steady the device and focus", 
+				postText:`The text is sharp, cutting through the blur of the moving vehicle. You are in control of the intake.`,
+				next: "act1_scene2b" },
+			{ 
+				id: "acknowledge", 
+				label: "Wait for the vibration to settle", 
+				postText:`The world outside wins for a moment. You wait for the road to smooth out, letting the environment dictate when you are ready to listen.`,
+				next: "act1_scene2b" }
+		  ]
+		},
+
+	
+	act1_scene2b: {
+      id: "act1_scene2b",
+      text: `
+Once you steady your gaze, the words from the speaker return. Not as a memory, but as a presence.
 
 “Becoming aware.”
 “A threshold.”
@@ -159,8 +217,13 @@ Why did that feel different?
 You’ve always assumed change required force.
 Discipline. Struggle. Time.
 
-But something about this moment suggests
-there may be more at play than you once thought.`,
+But something about this moment suggests a different possibility—that something fundamental is already in place, currently unnoticed.
+
+You feel a subtle resistance rise. Not fear—familiarity. The instinct to return to the predictable. 
+
+[SYSTEM ALERT — DRAMA INJECTION] ALERT: ATTENTION FRAGMENTED. SYSTEM AWAITING COHERENCE.
+
+You realize with a jolt that you aren't just thinking about the story anymore. You are becoming a part of its data stream. The phone in your hand feels heavier than it did a minute ago.`,
       veil: {
         id: "veil_1",
         revealedText: `
@@ -438,6 +501,14 @@ Just a message:
           id: "noticed",
           label: "I was noticed.",
           flags: ["kainos_path", "Path_Noticed"],
+		  postText:`
+The hum of the vehicle’s engine vibrates through your seat, a constant, low-frequency reminder that you are in motion. Outside the window, the world is a streak of gray, but inside the cabin, the air has suddenly gone still.
+
+You don't just feel the phone call anymore; you feel the weight of the connection. By acknowledging it, you’ve pulled on a thread that is attached to something much larger than this car.
+
+(New System Text): CONNECTION STABILIZED. USER REACTIVITY: HIGH. INITIALIZING IDENTITY PROTOCOL...
+
+You aren't just a passenger anymore. You’ve just signaled to the system that you are awake.`,
           // triggers: ["late_name_ready"], // now handled by app logic
           next: "act2_start"
         },
@@ -445,6 +516,18 @@ Just a message:
           id: "coincidence",
           label: "This is a coincidence.",
           flags: ["offline_resistance"],
+		  postText:`
+The message doesn’t explain itself. Not yet. You feel it recede — not gone, just waiting.
+
+The phone call remains a jagged edge in your memory, but you choose to file it under 'statistical anomaly.' The system doesn't argue. It simply waits.
+
+The logic of the world reasserts itself, cold and comforting. You tell yourself that a phone call is just audio data, and a name is just a string of characters.
+
+(New System Text): COINCIDENCE LOGGED. SYSTEM FILTER: ENABLED.
+
+But as you return to the data on your screen, the silence in the vehicle feels different. The phone—now dark and dormant—looks like a predator that decided you weren't worth the hunt. For now.
+
+You didn't answer the call. You didn't claim the name. You chose to be a ghost in your own life.`,
           next: "act2_start"
         }
       ]
