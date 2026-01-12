@@ -507,7 +507,7 @@ Just a message:
         'If the moment earlier meant nothing to you, ignore this.'
         'If it didn’t — you’re not the only one.
 
-<span class="feed-preview">Someone noticed something.</span>`,'`,
+<span class="feed-preview">Someone noticed something.</span>`,
       choices: [
         {
           id: "noticed",
@@ -552,4 +552,3 @@ You didn't answer the call. You didn't claim the name. You chose to be a ghost i
 
   }
 };
-
