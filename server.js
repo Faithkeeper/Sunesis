@@ -1,6 +1,4 @@
-require('dotenv').config();
-
-// 1. GLOBALS (Must be first)
+// 1. GLOBALS FIRST
 global.signalRegistry = new Map();
 global.playerRegistry = new Map();
 global.sectorRegistry = new Map();
@@ -16,34 +14,29 @@ const worldManager = require("./engine/WorldManager");
 const Signal = require("./engine/Signal");
 const { updateSector } = require("./engine/sectorUpdater");
 
-// 3. MIDDLEWARE & STATIC CONTENT
+// 3. MIDDLEWARE
 app.use(express.json());
-app.use(express.static('public')); // Acts 1-6
-app.use(express.static('static')); // Online World
-
-// Routes
-app.use("/api", require("./routes/signalRoutes"));
-
-app.get('/world', (req, res) => {
-    res.sendFile(path.join(__dirname, 'static', 'world.html'));
-});
+app.use(express.static('public')); 
+app.use(express.static('static')); 
 
 // 4. BOOT SEQUENCE
 async function boot() {
     try {
         console.log("[SYSTEM] Initializing Boot Sequence...");
         
-        await connectDB();       // Connect to Atlas
-        await hydrateWorld();    // Fill Registries from DB
+        await connectDB();       
+        await hydrateWorld();    
 
         // Start World Engine
         worldManager.startLoop();
 
-        // Create Initial Signal if needed
-        const s1 = new Signal({ sectorId: "Main_Hub" });
-        worldManager.addSignal(s1);
+        // Create Initial Signal if none exist
+        if (global.signalRegistry.size === 0) {
+            const s1 = new Signal({ sectorId: "Main_Hub" });
+            worldManager.addSignal(s1);
+        }
 
-        // Start Sector Update Loop (Every 15s)
+        // Sector Update Loop (Every 15s)
         setInterval(() => {
             for (const sector of global.sectorRegistry.values()) {
                 const signals = [];
@@ -56,23 +49,27 @@ async function boot() {
                     }
                 }
                 updateSector(sector, signals);
-                // Note: Ensure updateAmbientLine is defined or imported if used
             }
         }, 15000);
 
-        // Start Database Persistence (Every 60s)
+        // Start Persistence
         startSaveLoop();
 
         const PORT = process.env.PORT || 10000;
         app.listen(PORT, () => {
             console.log(`==> APOKALUPSIS ONLINE: Live on port ${PORT}`);
-            console.log("[SYSTEM] World is live and persistent.");
         });
 
     } catch (err) {
-        console.error("[FATAL ERROR] World failed to initialize:", err);
+        console.error("[FATAL ERROR] Boot failed:", err);
     }
 }
 
-// Start the game
+// 5. ROUTES
+app.use("/api", require("./routes/signalRoutes"));
+
+app.get('/world', (req, res) => {
+    res.sendFile(path.join(__dirname, 'static', 'world.html'));
+});
+
 boot();
