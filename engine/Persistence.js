@@ -11,11 +11,9 @@ const Signal = require('./Signal');
  * If there is data, we fill our global.Registries with it.
  * If there is NO data (first run), we create the "Main_Hub".
  */
-async function hydrateWorld() {
+sync function hydrateWorld() {
     console.log("[SYSTEM] Beginning Hydration...");
-
     try {
-        // 1. Define internal Schemas (if not in separate files)
         const SectorModel = mongoose.models.Sector || mongoose.model('Sector', new mongoose.Schema({
             id: String,
             name: String,
@@ -25,13 +23,11 @@ async function hydrateWorld() {
             signalIds: Array
         }));
 
-        // 2. Load Sectors from DB
-        const savedSectors = await SectorModel.find({});
+        const savedSectors = await SectorModel.find({}).maxTimeMS(5000); // 5s limit
 
         if (savedSectors.length === 0) {
-            console.log("[SYSTEM] No sectors found. Initializing 'Main_Hub'...");
-            const hub = new Sector({ id: "Main_Hub", name: "The Prime Sector" });
-            global.sectorRegistry.set(hub.id, hub);
+            // This now runs if DB is empty OR if we manually trigger it
+            createDefaultHub();
         } else {
             savedSectors.forEach(data => {
                 const sector = new Sector({ id: data.id, name: data.name });
@@ -50,8 +46,17 @@ async function hydrateWorld() {
 
         return true;
     } catch (err) {
-        console.error("[CRITICAL] Hydration failed:", err);
-        return false;
+        console.error("[CRITICAL] Hydration failed, using Emergency Defaults.");
+        createDefaultHub(); // FAILSAFE: Create Main_Hub in RAM so signals have a home
+    }
+}
+
+function createDefaultHub() {
+    const Sector = require('./Sector');
+    if (!global.sectorRegistry.has("Main_Hub")) {
+        const hub = new Sector({ id: "Main_Hub", name: "The Prime Sector" });
+        global.sectorRegistry.set(hub.id, hub);
+        console.log("[SYSTEM] Main_Hub initialized in Emergency RAM mode.");
     }
 }
 
