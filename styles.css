@@ -273,3 +273,51 @@ body {
   .hud-stat { min-width: 48px; padding:0.28rem 0.4rem; }
   .flag-chip { font-size: 0.72rem; padding:0.2rem 0.45rem; }
 }
+
+/* Add to styles.css */
+
+/* STEP 1: THE ECHO (Quiet system acknowledgement) */
+.system-echo {
+  display: block;
+  margin-top: 0.8rem;
+  font-family: "Inter", sans-serif;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.4);
+  animation: fadeIn 1.5s ease-in;
+}
+
+/* STEP 3: FEED PREVIEW (The blurred mystery line) */
+.feed-preview {
+  display: block;
+  margin-top: 1.5rem;
+  font-family: "Courier New", monospace;
+  font-size: 0.9rem;
+  color: #88ffaa; /* Terminal Green */
+  opacity: 0.6;
+  filter: blur(1.5px); /* The visual hook */
+  user-select: none;   /* Can't copy/paste it */
+  transition: filter 0.5s ease;
+}
+.feed-preview:hover {
+  filter: blur(0px); /* Let them peek if they try hard */
+  opacity: 1;
+}
+
+/* STEP 4: CONSEQUENCE PROOF (Boot sequence) */
+.system-boot {
+  display: block;
+  margin-bottom: 1rem;
+  font-family: "Courier New", monospace;
+  font-weight: bold;
+  font-size: 0.85rem;
+  color: #88ffaa;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid rgba(136, 255, 170, 0.2);
+  padding-bottom: 0.5rem;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 0.4; }
+}
