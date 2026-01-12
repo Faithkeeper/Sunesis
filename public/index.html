@@ -9,6 +9,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="styles.css" />
+  
+  <link rel="manifest" href="/manifest.json">
 </head>
 <body>
 
@@ -56,5 +58,14 @@
   <script src="act6.js"></script>
   <script src="engine.js"></script>
   <script src="app.js"></script>
+  <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then(reg => console.log('[SW] Active:', reg.scope))
+        .catch(err => console.error('[SW] Registration failed:', err));
+    });
+  }
+</script>
 </body>
 </html>
