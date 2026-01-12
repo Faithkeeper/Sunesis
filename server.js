@@ -1,77 +1,76 @@
-// server.js (Clean Version)
+// 1. GLOBALS (Must be first)
+global.signalRegistry = new Map();
+global.playerRegistry = new Map();
+global.sectorRegistry = new Map();
 
+// 2. IMPORTS
 const express = require('express');
+const path = require('path');
 const app = express();
 
-// 1. Setup Globals
-global.signalRegistry = new Map();   // signalId → Signal
-global.playerRegistry = new Map();   // playerId → player object
-global.sectorRegistry = new Map();   // sectorId → sector object
-
-
-// 2. Connect DB & Hydrate
 const connectDB = require('./engine/db');
-const { hydrateWorld } = require('./engine/Persistence');
-
-async function boot() {
-    await connectDB();       // Connect to Atlas
-    await hydrateWorld();    // Fill the Registries from the DB
-	
-// 2. IMPORT ENGINE FILES
-const express = require('express');
 const { hydrateWorld, startSaveLoop } = require('./engine/Persistence');
-
 const worldManager = require("./engine/WorldManager");
 const Signal = require("./engine/Signal");
-
-// 3. Start the server only AFTER data is loaded
-    app.listen(process.env.PORT || 10000, () => {
-        console.log("==> APOKALUPSIS ONLINE: Connection Established");
-    });
-}
-
-boot();
-
-// Start the loop
-worldManager.startLoop();
-
-// Add a signal
-const s1 = new Signal({ sectorId: "Main_Hub" });
-worldManager.addSignal(s1);
-
-app.use("/api", require("./routes/signalRoutes"));
-
 const { updateSector } = require("./engine/sectorUpdater");
 
-  // 3. Start Loops
-  // ... (My existing Signal/Sector loops here) ...
- setInterval(() => {
-  for (const sector of global.sectorRegistry.values()) {
-    const signals = [];
-    
-    for (const id of sector.signalIds) {
-      const sig = global.signalRegistry.get(id);
-      if (!sig) {
-        sector.signalIds.delete(id); // Cleanup ghost references
-      } else {
-        signals.push(sig);
-      }
-    }
+// 3. MIDDLEWARE & STATIC CONTENT
+app.use(express.json());
+app.use(express.static('public')); // Acts 1-6
+app.use(express.static('static')); // Online World
 
-    updateSector(sector, signals);
-	updateAmbientLine(sector);
-  }
-}, 15000);
-  // 4. Start Persistence Loop
-  startSaveLoop(); // Starts the 60s save timer
+// Routes
+app.use("/api", require("./routes/signalRoutes"));
 
-  console.log("[SYSTEM] World is live and persistent.");
-})();
-
-app.use(express.static('public')); // Serves index.html (Acts 1-6)
-app.use(express.static('static')); // Serves world.html (The Online Layer)
-
-// This route lets you jump to the online world
 app.get('/world', (req, res) => {
     res.sendFile(path.join(__dirname, 'static', 'world.html'));
 });
+
+// 4. BOOT SEQUENCE
+async function boot() {
+    try {
+        console.log("[SYSTEM] Initializing Boot Sequence...");
+        
+        await connectDB();       // Connect to Atlas
+        await hydrateWorld();    // Fill Registries from DB
+
+        // Start World Engine
+        worldManager.startLoop();
+
+        // Create Initial Signal if needed
+        const s1 = new Signal({ sectorId: "Main_Hub" });
+        worldManager.addSignal(s1);
+
+        // Start Sector Update Loop (Every 15s)
+        setInterval(() => {
+            for (const sector of global.sectorRegistry.values()) {
+                const signals = [];
+                for (const id of sector.signalIds) {
+                    const sig = global.signalRegistry.get(id);
+                    if (!sig) {
+                        sector.signalIds.delete(id);
+                    } else {
+                        signals.push(sig);
+                    }
+                }
+                updateSector(sector, signals);
+                // Note: Ensure updateAmbientLine is defined or imported if used
+            }
+        }, 15000);
+
+        // Start Database Persistence (Every 60s)
+        startSaveLoop();
+
+        const PORT = process.env.PORT || 10000;
+        app.listen(PORT, () => {
+            console.log(`==> APOKALUPSIS ONLINE: Live on port ${PORT}`);
+            console.log("[SYSTEM] World is live and persistent.");
+        });
+
+    } catch (err) {
+        console.error("[FATAL ERROR] World failed to initialize:", err);
+    }
+}
+
+// Start the game
+boot();
