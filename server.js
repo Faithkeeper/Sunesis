@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 // 1. GLOBALS (Must be first)
 global.signalRegistry = new Map();
 global.playerRegistry = new Map();
