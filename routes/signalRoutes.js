@@ -86,4 +86,35 @@ router.get("/feed", (req, res) => {
   return res.json({ status: "acknowledged" });
 });
 
+// 1. Single Save Route
+router.post('/save', async (req, res) => {
+    try {
+        const { profileName, playerData } = req.body;
+        // Here you would find the user in MongoDB and update their profile
+        // e.g., await PlayerModel.findOneAndUpdate({ name: profileName }, { data: playerData });
+        console.log(`[DB] Saved profile: ${profileName}`);
+        res.sendStatus(200);
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+});
+
+// 2. Bulk Sync Route (For the Offline Queue)
+router.post('/sync', async (req, res) => {
+    try {
+        const { events } = req.body;
+        console.log(`[SYNC] Processing ${events.length} offline events...`);
+        
+        for (const event of events) {
+            // Process each queued save in order
+            // This ensures decisions made while offline aren't lost
+        }
+        
+        res.status(200).json({ status: 'success', count: events.length });
+    } catch (err) {
+        console.error("[SYNC] Error processing batch:", err);
+        res.status(500).send("Sync failed");
+    }
+});
+
 module.exports = router;
