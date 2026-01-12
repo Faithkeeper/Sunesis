@@ -16,6 +16,9 @@
   const restartBtn = document.getElementById("restart-btn");
   const readerToggleBtn = document.getElementById("reader-toggle");
   const titleLeft = document.getElementById("title-left"); // used to inject profile UI if present
+  
+  // PWA CONFIG: The keys for our local buffer
+  const OFFLINE_QUEUE_KEY = "apokalupsis_offline_sync_v1";
 
   const hudStatsEl = document.getElementById("hud-stats");
   const hudFlagsEl = document.getElementById("hud-flags");
@@ -92,23 +95,106 @@
     saveProfilesToStorage(PROFILES);
   }
 
-  function saveCurrentProfile() {
-    try {
-      if (!currentProfileName) return;
-      PROFILES = loadProfilesFromStorage(); // refresh to merge concurrent changes
-      PROFILES[currentProfileName] = {
-        player: cloneDeep(Engine.player || {}),
-        scene: currentSceneId || (Engine.player && Engine.player.scene) || null,
-        updated_at: new Date().toISOString(),
-        displayName: currentProfileName
-      };
-      saveProfilesToStorage(PROFILES);
-      setLastProfileName(currentProfileName);
-      // still call legacy saveGame if provided
-      if (typeof saveGame === "function") saveGame(PROFILES[currentProfileName].player);
-    } catch (err) {
-      console.error("Failed to save current profile:", err);
+  // -------------------------
+  // THE NEW SYNC LOGIC
+  // -------------------------
+
+  /**
+   * Upgraded Save Function: 
+   * Tries to hit the server, but falls back to a queue if offline.
+   */
+  async function saveCurrentProfile() {
+    if (!CURRENT_PROFILE_NAME || !PROFILES[CURRENT_PROFILE_NAME]) return;
+    
+    // 1. Always Save to LocalStorage first (for instant recovery)
+    PROFILES[CURRENT_PROFILE_NAME].scene = currentSceneId;
+    saveProfilesToStorage(PROFILES);
+
+    const dataToSync = {
+      profileName: CURRENT_PROFILE_NAME,
+      playerData: Engine.player,
+      timestamp: Date.now()
+    };
+
+    // 2. Try to sync with Render/MongoDB
+    if (navigator.onLine) {
+      syncWithServer(dataToSync);
+    } else {
+      queueForLater(dataToSync);
     }
+  }
+
+  async function syncWithServer(data) {
+    try {
+      const response = await fetch('/api/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (response.ok) console.log("[SYSTEM] Cloud Sync Successful.");
+    } catch (e) {
+      queueForLater(data); // If server is down but internet is up
+    }
+  }
+
+  function queueForLater(data) {
+    const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]");
+    queue.push(data);
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+    console.warn("[SYSTEM] Offline. Progress queued locally.");
+  }
+
+  /**
+   * Listener: When internet returns, flush the queue
+   */
+  window.addEventListener('online', async () => {
+    console.log("[SYSTEM] Connection restored. Flushing offline queue...");
+    const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]");
+    
+    if (queue.length > 0) {
+      try {
+        const response = await fetch('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ events: queue })
+        });
+        if (response.ok) {
+          localStorage.removeItem(OFFLINE_QUEUE_KEY);
+          console.log("[SYSTEM] All offline progress synced to MongoDB.");
+        }
+      } catch (e) {
+        console.error("[SYSTEM] Sync failed, will retry later.");
+      }
+    }
+  });
+
+  // -------------------------
+  // Existing Navigation Logic (Updated to use the new save)
+  // -------------------------
+
+  function renderScene(sceneId) {
+    const scene = currentAct.scenes[sceneId];
+    if (!scene) return;
+    currentSceneId = sceneId;
+
+    // Trigger the save whenever a scene renders
+    saveCurrentProfile();
+
+    storyEl.innerHTML = "";
+    const p = document.createElement("p");
+    p.className = "scene-text";
+    p.innerHTML = scene.text.replace(/\n/g, "<br>");
+    storyEl.appendChild(p);
+
+    clearChoices();
+    scene.choices?.forEach(choice => {
+      const btn = createChoiceButton(choice.label, () => {
+        // Apply flags
+        choice.flags?.forEach(f => Engine.player.flags.add(f));
+        renderScene(choice.next);
+      });
+      choicesEl.appendChild(btn);
+    });
   }
 
   function loadProfile(name) {
