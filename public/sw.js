@@ -36,27 +36,3 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-window.addEventListener('online', async () => {
-  console.log("[SYSTEM] Connection restored. Synchronizing data...");
-  
-  const saveKey = 'apokalupsis_offline_queue';
-  const queue = JSON.parse(localStorage.getItem(saveKey) || "[]");
-
-  if (queue.length > 0) {
-    try {
-      // Send the entire backlog to the server
-      const response = await fetch('/api/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ events: queue })
-      });
-
-      if (response.ok) {
-        console.log("[SYSTEM] Sync complete. Local queue cleared.");
-        localStorage.removeItem(saveKey);
-      }
-    } catch (err) {
-      console.error("[SYSTEM] Sync failed. Will retry next time connection is stable.");
-    }
-  }
-});
