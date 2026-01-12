@@ -847,7 +847,8 @@
 
     content = applyTemplates(content);
 
-    storyEl.textContent = content;
+    // Enable HTML rendering for styles
+	storyEl.innerHTML = content;
     if (storyEl) storyEl.scrollTop = 0;
 
     const flags = Engine.player && Engine.player.flags ? Engine.player.flags : [];
@@ -903,7 +904,7 @@
 
           if (choice.postText) {
             const renderedPost = applyTemplates((choice.postText || "").trim());
-            storyEl.textContent = renderedPost;
+            storyEl.innerHTML = renderedPost;
             if (storyEl) storyEl.scrollTop = 0;
             clearChoices();
             const cont = createChoiceButton("Continue", () => {
