@@ -4,7 +4,12 @@ const ASSETS_TO_CACHE = [
   '/index.html',
   '/style.css',
   '/act1.js',
-  // Add other Act files here (act2.js, act3.js, etc.)
+  '/act2.js',
+  '/act3.js',
+  '/act4.js',
+  '/act5.js',
+  '/act6.js',
+  '/app.js',
   '/static/world.html'
 ];
 
