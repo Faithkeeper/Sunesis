@@ -1,6 +1,36 @@
 // server.js (Clean Version)
+
+const express = require('express');
+const app = express();
+
+// 1. Setup Globals
+global.signalRegistry = new Map();   // signalId → Signal
+global.playerRegistry = new Map();   // playerId → player object
+global.sectorRegistry = new Map();   // sectorId → sector object
+
+
+// 2. Connect DB & Hydrate
+const connectDB = require('./engine/db');
+const { hydrateWorld } = require('./engine/Persistence');
+
+async function boot() {
+    await connectDB();       // Connect to Atlas
+    await hydrateWorld();    // Fill the Registries from the DB
+	
+// 2. IMPORT ENGINE FILES
+const express = require('express');
+const { hydrateWorld, startSaveLoop } = require('./engine/Persistence');
+
 const worldManager = require("./engine/WorldManager");
 const Signal = require("./engine/Signal");
+
+// 3. Start the server only AFTER data is loaded
+    app.listen(process.env.PORT || 10000, () => {
+        console.log("==> APOKALUPSIS ONLINE: Connection Established");
+    });
+}
+
+boot();
 
 // Start the loop
 worldManager.startLoop();
@@ -9,28 +39,9 @@ worldManager.startLoop();
 const s1 = new Signal({ sectorId: "Main_Hub" });
 worldManager.addSignal(s1);
 
-global.signalRegistry = new Map();   // signalId → Signal
-global.playerRegistry = new Map();   // playerId → player object
-global.sectorRegistry = new Map();   // sectorId → sector object
-
 app.use("/api", require("./routes/signalRoutes"));
 
 const { updateSector } = require("./engine/sectorUpdater");
-
-
-
-// server.js
-require("dotenv").config(); // Load .env for MONGO_URI
-const connectDB = require("./engine/db");
-const { hydrateWorld, startSaveLoop } = require("./engine/Persistence");
-
-// 1. Connect DB
-connectDB();
-
-// 2. Hydrate BEFORE starting the game loop
-// We wrap start in an async IIFE
-(async () => {
-  await hydrateWorld(); // Pulls data from Atlas
 
   // 3. Start Loops
   // ... (My existing Signal/Sector loops here) ...
