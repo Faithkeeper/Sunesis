@@ -1,3 +1,4 @@
+// engine/FeedManager.js
 const { persistFeedEvent } = require("./Persistence");
 
 class FeedManager {
@@ -11,9 +12,8 @@ class FeedManager {
     if (this.events.length > this.MAX_SIZE) {
       this.events.pop(); // Remove oldest
     }
-  }
-      
-    // Fire and forget save (don't await)
+    
+    // Correctly placed inside the add function
     persistFeedEvent(event); 
   }
 
@@ -21,7 +21,7 @@ class FeedManager {
    * Returns the feed filtered by the VIEWER'S philosophy
    */
   getForPlayer(player) {
-    const viewerPhil = player.philosophy || 'logic'; // Default fallback
+    const viewerPhil = player.philosophy || 'logic'; 
 
     return this.events.map(event => ({
       id: event.id,
