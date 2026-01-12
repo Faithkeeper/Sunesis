@@ -58,33 +58,28 @@ How do you respond? (You are not choosing who you are — only where you look.)`
           label: "Focus on the sensation",
           stats: { sunesis: 1 },
           flags: ["veil_seeded"],
-          postText: `[The edges of the room blur. The speaker’s voice stops being words and starts being a physical vibration in your chest. You aren't thinking anymore—you are just perceiving.]
-
-You turn your attention inward instead of away.
-
-The room sharpens. Sounds fall into place. The speaker’s voice feels uncomfortably direct."`,
+          // STEP 1: THE ECHO (Immediate Acknowledgment)
+          postText: `The edges of the room blur. The speaker’s voice stops being words and starts being a physical vibration in your chest.
+          
+<span class="system-echo">That choice didn’t disappear.</span>`,
           next: "act1_scene1b"
         },
         {
           id: "analyze",
           label: "Analyze the logic of the words",
           stats: { gnosis: 1 },
-          postText: `[You ignore the 'feeling' and dissect the sentence structure. You recognize the rhetorical patterns. You aren't falling for the mood; you are mapping the blueprint of what he's trying to build.]
-
-You pull the statement apart, testing it for structure, intent, pattern.
-
-You recognize familiar ideas rearranged into something more deliberate. This isn’t random speech — it’s constructed.`,
+          postText: `You ignore the 'feeling' and dissect the sentence structure. You aren't falling for the mood; you are mapping the blueprint.
+          
+<span class="system-echo">That choice didn’t disappear.</span>`,
           next: "act1_scene1b"
         },
         {
           id: "guard",
           label: "Guard your mind",
           stats: { skepticism: 1 },
-          postText: `[You deliberately notice the hum of the air conditioner and the cough of someone in the back row.]
-
-You resist the pull. You’ve heard convincing people before.
-
-You anchor yourself in what’s tangible: the chair, the floor, the room. Whatever this is, you refuse to let it decide for you.`,
+          postText: `You deliberately notice the hum of the air conditioner. You anchor yourself in what’s tangible.
+          
+<span class="system-echo">That choice didn’t disappear.</span>`,
           next: "act1_scene1b"
         }
       ]
@@ -221,7 +216,7 @@ But something about this moment suggests a different possibility—that somethin
 
 You feel a subtle resistance rise. Not fear—familiarity. The instinct to return to the predictable. 
 
-[SYSTEM ALERT — DRAMA INJECTION] ALERT: ATTENTION FRAGMENTED. SYSTEM AWAITING COHERENCE.
+[SYSTEM ALERT] SYSTEM AWAITING COHERENCE.
 
 You realize with a jolt that you aren't just thinking about the story anymore. You are becoming a part of its data stream. The phone in your hand feels heavier than it did a minute ago.`,
       veil: {
@@ -284,6 +279,21 @@ The vehicle slows. The air inside the cabin feels thinner now—not lacking oxyg
         revealedText: `
 You’ve used the same reasoning before — and it never held.`
       },
+	  // STEP 2: MICRO FEEDBACK LOOP (Conditional Phrasing)
+      conditionalText: [
+        {
+          if: { stat: "gnosis", gte: 1 }, // Logic
+          text: `The vehicle moves with calculated precision. Every stop feels routed. The machinery of the city feels exposed.`
+        },
+        {
+          if: { stat: "sunesis", gte: 1 }, // Loyalty/Connection
+          text: `You feel the collective weight of the passengers. A shared, silent momentum that pulls everyone in the same direction.`
+        },
+        {
+          if: { stat: "skepticism", gte: 1 }, // Chaos/Defense
+          text: `The brakes grind abruptly. The ride feels disjointed. The pattern is stuttering.`
+        }
+      ],
       choices: [
         {
           id: "change_vehicle",
@@ -495,18 +505,23 @@ You almost ignore it. Habit. Nothing urgent ever arrives unannounced. When you f
 Just a message:
 
         'If the moment earlier meant nothing to you, ignore this.'
-        'If it didn’t — you’re not the only one.'`,
+        'If it didn’t — you’re not the only one.
+
+<span class="feed-preview">Someone noticed something.</span>`,'`,
       choices: [
         {
           id: "noticed",
           label: "I was noticed.",
           flags: ["kainos_path", "Path_Noticed"],
-		  postText:`
+		  // STEP 4: FIRST PROOF OF CONSEQUENCE
+          postText: `
+<div class="system-boot">PREVIOUS DECISIONS DETECTED.</div>
+
 The hum of the vehicle’s engine vibrates through your seat, a constant, low-frequency reminder that you are in motion. Outside the window, the world is a streak of gray, but inside the cabin, the air has suddenly gone still.
 
 You don't just feel the phone call anymore; you feel the weight of the connection. By acknowledging it, you’ve pulled on a thread that is attached to something much larger than this car.
 
-(New System Text): CONNECTION STABILIZED. USER REACTIVITY: HIGH. INITIALIZING IDENTITY PROTOCOL...
+(New System Text): CONNECTION STABILIZED.
 
 You aren't just a passenger anymore. You’ve just signaled to the system that you are awake.`,
           // triggers: ["late_name_ready"], // now handled by app logic
@@ -517,13 +532,15 @@ You aren't just a passenger anymore. You’ve just signaled to the system that y
           label: "This is a coincidence.",
           flags: ["offline_resistance"],
 		  postText:`
+<div class="system-boot">PREVIOUS DECISIONS DETECTED.</div>		  
+
 The message doesn’t explain itself. Not yet. You feel it recede — not gone, just waiting.
 
 The phone call remains a jagged edge in your memory, but you choose to file it under 'statistical anomaly.' The system doesn't argue. It simply waits.
 
 The logic of the world reasserts itself, cold and comforting. You tell yourself that a phone call is just audio data, and a name is just a string of characters.
 
-(New System Text): COINCIDENCE LOGGED. SYSTEM FILTER: ENABLED.
+(New System Text): COINCIDENCE LOGGED.
 
 But as you return to the data on your screen, the silence in the vehicle feels different. The phone—now dark and dormant—looks like a predator that decided you weren't worth the hunt. For now.
 
