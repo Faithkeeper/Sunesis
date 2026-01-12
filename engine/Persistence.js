@@ -11,7 +11,7 @@ const Signal = require('./Signal');
  * If there is data, we fill our global.Registries with it.
  * If there is NO data (first run), we create the "Main_Hub".
  */
-sync function hydrateWorld() {
+async function hydrateWorld() {
     console.log("[SYSTEM] Beginning Hydration...");
     try {
         const SectorModel = mongoose.models.Sector || mongoose.model('Sector', new mongoose.Schema({
@@ -98,3 +98,4 @@ async function persistFeedEvent(event) {
 }
 
 module.exports = { hydrateWorld, startSaveLoop, persistFeedEvent };
+
