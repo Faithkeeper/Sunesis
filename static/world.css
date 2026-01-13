@@ -14,15 +14,39 @@
 /* Base */
 * { box-sizing: border-box; }
 html,body { height: 100%; }
+/* Normal State */
 body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--fg);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  font-family: "Merriweather", Georgia, serif; /* serif for story text */
-  font-size: 16px;
-  line-height: 1.65;
+    background-color: #111;
+    color: #eee;
+    transition: background-color 2s ease;
+}
+
+/* The Shift: Unstable State */
+body.world-unstable {
+    background-color: #030303; /* A deeper, "heavy" black */
+}
+
+/* Cursor Blink Delay - subtle, annoying, effective */
+body.world-unstable .cursor {
+    animation: blink 1.5s steps(2, start) infinite; /* Slowed down from 0.5s */
+}
+
+/* The "Presence" Divider */
+body.world-unstable #world-description::after {
+    content: "";
+    display: block;
+    width: 30px;
+    height: 1px;
+    background: #222;
+    margin: 20px auto;
+    box-shadow: 0 0 5px #ff000022; /* A tiny, almost invisible red glow */
+}
+
+/* Ghost Signal Styling */
+.signal-ghost {
+    opacity: 0.3;
+    filter: blur(0.5px);
+    font-style: italic;
 }
 
 /* App container */
