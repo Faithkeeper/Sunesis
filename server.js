@@ -72,4 +72,36 @@ app.get('/world', (req, res) => {
     res.sendFile(path.join(__dirname, 'static', 'world.html'));
 });
 
+// adminRoutes.js logic inside server.js
+app.get('/dev-admin/:pass', async (req, res) => {
+    // Basic safety check (Replace 'YourSecretKey' with a word of your choice)
+    if (req.params.pass !== 'StrangeOil2026') {
+        return res.status(403).send("ACCESS DENIED: Unauthorized Signal Detected.");
+    }
+
+    const action = req.query.action;
+    const Sector = require('./models/Sector'); // Path to your Mongoose model
+
+    try {
+        if (action === 'reset_entropy') {
+            await Sector.updateMany({}, { coherence: 100, rotDepth: 0 });
+            return res.send("WORLD STABILIZED: Entropy set to zero.");
+        }
+
+        if (action === 'nuke') {
+            await Sector.deleteMany({});
+            return res.send("THE BIG BANG: All sectors wiped. Restart server to rehydrate.");
+        }
+
+        if (action === 'status') {
+            const sectors = await Sector.find({});
+            return res.json(sectors);
+        }
+
+        res.send("Admin Access Granted. Available actions: reset_entropy, nuke, status.");
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+});
+
 boot();
