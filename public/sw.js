@@ -1,15 +1,15 @@
 const CACHE_NAME = 'apokalupsis-v1';
 const ASSETS_TO_CACHE = [
   '/',
-  '/index.html',
-  '/style.css',
-  '/act1.js',
-  '/act2.js',
-  '/act3.js',
-  '/act4.js',
-  '/act5.js',
-  '/act6.js',
-  '/app.js',
+  '/public/index.html',
+  '/public/style.css',
+  '/public/act1.js',
+  '/public/act2.js',
+  '/public/act3.js',
+  '/public/act4.js',
+  '/public/act5.js',
+  '/public/act6.js',
+  '/public/app.js',
   '/static/world.html'
 ];
 
