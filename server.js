@@ -68,6 +68,34 @@ async function boot() {
 // 5. ROUTES
 app.use("/api", require("./routes/signalRoutes"));
 
+// server.js (The logic that world_client.js talks to)
+app.post('/api/world/enter-sector', async (req, res) => {
+    const { sectorId, playerName } = req.body;
+    const Sector = require('./models/Sector');
+
+    try {
+        let sector = await Sector.findOne({ id: sectorId });
+        
+        // Increment the "Pressure"
+        sector.entryCount += 1;
+
+        // The Silent Shift
+        if (sector.state === 'neutral' && sector.entryCount >= 5) {
+            sector.state = 'unstable';
+        }
+
+        await sector.save();
+
+        res.json({
+            state: sector.state,
+            // We send the specific text based on the state
+            description: sector.state === 'neutral' 
+                ? "The station is quiet. Systems idle. No clear signals." 
+                : "The station is quiet — but not empty. Something lingers. Not data. Presence."
+        });
+    } catch (e) { res.sendStatus(500); }
+});
+
 app.get('/world', (req, res) => {
     res.sendFile(path.join(__dirname, 'static', 'world.html'));
 });
