@@ -29,6 +29,42 @@ async function fetchWithNarrativeLag(url, options) {
     return fetch(url, options);
 }
 
+// world_client.js
+
+async function initializeSector(id) {
+    const response = await fetch('/api/world/enter-sector', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sectorId: id, playerName: Engine.player.name })
+    });
+    const data = await response.json();
+
+    // 1. Update the Text
+    document.getElementById('world-description').innerText = data.description;
+
+    // 2. Inject the UI Change (Invisible)
+    if (data.state === 'unstable') {
+        document.body.classList.add('world-unstable');
+        applyFeedDistortion();
+    }
+}
+
+function applyFeedDistortion() {
+    // 3. UI Micro-change: Slower fade-in for signals
+    const feed = document.getElementById('global-feed');
+    feed.style.transition = "opacity 2.5s ease"; // Standard is likely 0.5s
+    
+    // 4. Feed Distortion: The "Echo"
+    // We intercept incoming signals and occasionally ghost one
+    window.addEventListener('new-signal', (e) => {
+        if (Math.random() > 0.85) {
+            setTimeout(() => {
+                renderSignal(e.detail, true); // True flag adds a 'ghost' CSS class
+            }, 4000);
+        }
+    });
+}
+
 // --- STEP 2: TEXT VARIANCE (BOREDOM ENGINE) ---
 function processTextVariance(text, sector) {
     // High rot (1.0) = High chance to just repeat the last thing you saw
