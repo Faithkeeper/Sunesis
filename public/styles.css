@@ -321,3 +321,19 @@ body {
   from { opacity: 0; }
   to { opacity: 0.4; }
 }
+
+.regret-echo {
+    color: #888; /* Dimmer than main text */
+    font-style: italic;
+    margin-top: 1.5rem;
+    font-size: 0.9em;
+    opacity: 0;
+    animation: ghostFadeIn 3s forwards; /* Takes 3 seconds to appear */
+    border-left: 1px solid #333; /* Subtle line */
+    padding-left: 15px;
+}
+
+@keyframes ghostFadeIn {
+    0% { opacity: 0; }
+    100% { opacity: 0.7; }
+}
