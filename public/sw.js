@@ -18,9 +18,10 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        return Promise.allSettled(PRECACHE_URLS.map(url => {
-          return cache.add(url).catch(err => console.error(`Failed to cache: ${url}`, err));
-        }));
+        // sw.js line 21
+	return Promise.allSettled(ASSETS_TO_CACHE.map(url => {
+	  return cache.add(url).catch(err => console.error(`Failed to cache: ${url}`, err));
+	}));
       })
       .then(() => self.skipWaiting())
   );
