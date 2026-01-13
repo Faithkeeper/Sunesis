@@ -397,3 +397,18 @@ button {
   50% { opacity: 1; }
   100% { opacity: 0.2; }
 }
+
+.regret-echo-world {
+    color: #666; /* Very dim gray */
+    border-left: 2px solid #333;
+    padding-left: 10px;
+    margin-bottom: 10px;
+    font-size: 0.85rem;
+    animation: echoFadeIn 5s ease-in-out;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+@keyframes echoFadeIn {
+    0% { opacity: 0; filter: blur(2px); }
+    100% { opacity: 1; filter: blur(0); }
+}
