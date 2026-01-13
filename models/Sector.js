@@ -11,4 +11,4 @@ const SectorSchema = new mongoose.Schema({
   lastUpdatedAt: Number
 });
 
-module.exports = mongoose.model("Sector", SectorSchema);
+module.exports = mongoose.models.Sector || mongoose.model('Sector', sectorSchema);
