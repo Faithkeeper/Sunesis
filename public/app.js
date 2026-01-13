@@ -24,6 +24,53 @@
   const hudFlagsEl = document.getElementById("hud-flags");
   const hudRepsEl = document.getElementById("hud-reps");
   const hudItemsEl = document.getElementById("hud-items");
+  
+  const RegretSystem = {
+    // SOW: Call this in Act files (e.g., RegretSystem.sow('rushed'))
+    sow: function(type) {
+        if (!Engine.player.regretSeeds) Engine.player.regretSeeds = [];
+        
+        const delayMs = (12 + Math.random() * 36) * 3600 * 1000; // 12-48 hours
+        const seed = {
+            id: Date.now().toString(36),
+            type: type,
+            bloomTime: Date.now() + delayMs,
+            resolved: false
+        };
+
+        Engine.player.regretSeeds.push(seed);
+        saveCurrentProfile();
+    },
+
+    // REAP: The "Harvest" logic that renders the echo
+    reap: function() {
+        if (!Engine.player.regretSeeds) return;
+        
+        const now = Date.now();
+        const ripeSeed = Engine.player.regretSeeds.find(s => !s.resolved && s.bloomTime <= now);
+
+        if (ripeSeed) {
+            ripeSeed.resolved = true;
+            saveCurrentProfile();
+
+            const echoes = {
+                'rushed': "The system connects instantly. It feels... too easy.",
+                'silence': "You hear a faint static loop. It sounds like a voice you ignored.",
+                'default': "The air in the sector feels heavier than you remember."
+            };
+
+            const echoText = echoes[ripeSeed.type] || echoes['default'];
+            
+            // Create the UI element
+            const ghostPara = document.createElement("p");
+            ghostPara.className = "regret-echo"; // Style this in your CSS
+            ghostPara.innerHTML = `<br><em>${echoText}</em>`;
+            storyEl.appendChild(ghostPara);
+        }
+    }
+};
+// Expose it so Act scripts can use it
+window.RegretSystem = RegretSystem;
 
   function clearChoices() { choicesEl.innerHTML = ""; }
   function createChoiceButton(label, onClick) {
@@ -167,7 +214,6 @@
       }
     }
   });
-
   // -------------------------
   // Existing Navigation Logic (Updated to use the new save)
   // -------------------------
@@ -185,7 +231,10 @@
     p.className = "scene-text";
     p.innerHTML = scene.text.replace(/\n/g, "<br>");
     storyEl.appendChild(p);
-
+	
+	// Trigger the Echo
+    RegretSystem.reap();
+	
     clearChoices();
     scene.choices?.forEach(choice => {
       const btn = createChoiceButton(choice.label, () => {
@@ -1062,7 +1111,15 @@
   function resetPlayerToDefaults(desiredAct = 1) {
     const defaultPlayer = {
       stats: { sunesis: 0, gnosis: 0, skepticism: 0, authority: 0, discovery: 0 },
-      flags: [], reputations: [], items: [], history: [], alignment: null, act: desiredAct, late_name: null, created_at: new Date().toISOString()
+      flags: [], 
+      reputations: [], 
+      items: [], 
+      history: [], 
+      alignment: null, 
+      act: desiredAct, 
+      late_name: null, 
+      created_at: new Date().toISOString(),
+      regretSeeds: [] // <--- ADD THIS LINE
     };
     if (Engine && Engine.player) {
       for (const k of Object.keys(Engine.player)) delete Engine.player[k];
@@ -1141,9 +1198,6 @@
     }
   }
 
-  // -------------------------
-  // Initialization
-  // -------------------------
   function initProfilesAndLoad() {
     PROFILES = loadProfilesFromStorage();
     const last = getLastProfileName();
