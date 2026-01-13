@@ -2,7 +2,7 @@ const CACHE_NAME = 'apokalupsis-v1';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
-  '/style.css',
+  '/styles.css',
   '/act1.js',
   '/act2.js',
   '/act3.js',
@@ -10,6 +10,7 @@ const ASSETS_TO_CACHE = [
   '/act5.js',
   '/act6.js',
   '/app.js',
+  '/static/world.css'
   '/static/world.html'
 ];
 
