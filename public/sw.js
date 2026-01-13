@@ -1,25 +1,28 @@
 const CACHE_NAME = 'apokalupsis-v1';
 const ASSETS_TO_CACHE = [
   '/',
-  '/public/index.html',
-  '/public/style.css',
-  '/public/act1.js',
-  '/public/act2.js',
-  '/public/act3.js',
-  '/public/act4.js',
-  '/public/act5.js',
-  '/public/act6.js',
-  '/public/app.js',
+  '/index.html',
+  '/style.css',
+  '/act1.js',
+  '/act2.js',
+  '/act3.js',
+  '/act4.js',
+  '/act5.js',
+  '/act6.js',
+  '/app.js',
   '/static/world.html'
 ];
 
 // 1. Install Phase: Save files to local cache
-self.addEventListener('install', (event) => {
+self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Caching Game Assets');
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        return Promise.allSettled(PRECACHE_URLS.map(url => {
+          return cache.add(url).catch(err => console.error(`Failed to cache: ${url}`, err));
+        }));
+      })
+      .then(() => self.skipWaiting())
   );
 });
 
