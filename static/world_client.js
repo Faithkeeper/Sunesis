@@ -1,5 +1,53 @@
 // world_client.js
 
+const WorldRegretSystem = {
+    reap: function() {
+        // Access the player data shared with app.js
+        const player = window.Engine?.player;
+        if (!player || !player.regretSeeds) return;
+
+        const now = Date.now();
+        // Look for a seed that is ready but not yet seen
+        const ripeSeed = player.regretSeeds.find(s => !s.resolved && s.bloomTime <= now);
+
+        if (ripeSeed) {
+            ripeSeed.resolved = true;
+            
+            // Persist the resolution so it doesn't double-trigger
+            if (window.saveCurrentProfile) window.saveCurrentProfile();
+
+            const echoes = {
+                'rushed': "The system connects instantly. It feels... too easy.",
+                'silence': "You hear a faint static loop. It sounds like a voice you ignored.",
+                'disconnect': "Everything seems functional. Yet something is missing.",
+                'default': "The air in the sector feels heavier than you remember."
+            };
+
+            const echoText = echoes[ripeSeed.type] || echoes['default'];
+            this.injectEcho(echoText);
+        }
+    },
+
+    injectEcho: function(text) {
+        // In the World, we inject the message into the Global Feed 
+        // but style it specifically for the individual player.
+        const feed = document.getElementById('global-feed');
+        if (feed) {
+            const echoEl = document.createElement('div');
+            echoEl.className = 'feed-item regret-echo-world';
+            echoEl.innerHTML = `<em>${text}</em>`;
+            
+            // Insert at the top of the feed
+            feed.prepend(echoEl);
+        }
+    }
+};
+
+// Hook into your existing poller to check for regrets every 30 seconds
+setInterval(() => {
+    WorldRegretSystem.reap();
+}, 30000);
+
 window.currentSector = { rotDepth: 0, textVariance: 1 }; // Default safety state
 
 async function syncSectorState() {
