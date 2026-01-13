@@ -21,6 +21,7 @@ How do you navigate the walk to the next site?`,
 			id: "edge_walk", 
 			label: "Stay on the edge of the sidewalk (Observation)", 
 			stats: { sunesis: 1 },
+			onChoose: () => { RegretSystem.sow('observation'); }, // <--- PLANT SEED
 			postText:`You see the patterns of the street clearly, but you feel isolated.`,
 			next: "act3_scene1a" },
         { 
