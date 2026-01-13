@@ -531,6 +531,7 @@ You aren't just a passenger anymore. You’ve just signaled to the system that y
           id: "coincidence",
           label: "This is a coincidence.",
           flags: ["offline_resistance"],
+		  onChoose: () => { RegretSystem.sow('disconnect'); }, // <--- PLANT SEED
 		  postText:`
 <div class="system-boot">PREVIOUS DECISIONS DETECTED.</div>		  
 
