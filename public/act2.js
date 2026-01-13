@@ -32,6 +32,7 @@ How do you feel right now?`,
           id: "cautious", 
           label: "Curious, but cautious", 
           flags: ["cautious_frame"],
+		  onChoose: () => { RegretSystem.sow('observation'); }, // <--- PLANT SEED
           postText: `You’re here to observe, not commit.`,
           next: "act2_scene1_pos" 
         },
