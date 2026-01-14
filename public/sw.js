@@ -10,7 +10,7 @@ const ASSETS_TO_CACHE = [
   '/act5.js',
   '/act6.js',
   '/app.js',
-  '/static/world.css'
+  '/static/world.css',
   '/static/world.html'
 ];
 
