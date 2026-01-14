@@ -10,8 +10,9 @@ const ASSETS_TO_CACHE = [
   '/act5.js',
   '/act6.js',
   '/app.js',
-  '/static/world.css',
-  '/static/world.html'
+  '/world.css',
+  '/world_client.js',
+  '/world.html'
 ];
 
 // 1. Install Phase: Save files to local cache
