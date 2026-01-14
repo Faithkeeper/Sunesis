@@ -1,4 +1,4 @@
-const CACHE_NAME = 'apokalupsis-v1';
+fconst CACHE_NAME = 'apokalupsis-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -41,4 +41,5 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
 
