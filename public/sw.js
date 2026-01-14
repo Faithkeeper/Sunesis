@@ -1,4 +1,4 @@
-fconst CACHE_NAME = 'apokalupsis-v2';
+const CACHE_NAME = 'apokalupsis-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -21,9 +21,9 @@ self.addEventListener('install', event => {
     caches.open(CACHE_NAME)
       .then(cache => {
         // sw.js line 21
-	return Promise.allSettled(ASSETS_TO_CACHE.map(url => {
-	  return cache.add(url).catch(err => console.error(`Failed to cache: ${url}`, err));
-	}));
+        return Promise.allSettled(ASSETS_TO_CACHE.map(url => {
+          return cache.add(url).catch(err => console.error(`Failed to cache: ${url}`, err));
+        }));
       })
       .then(() => self.skipWaiting())
   );
@@ -41,5 +41,3 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
-
-
