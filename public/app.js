@@ -337,23 +337,30 @@ scene.choices.forEach(choice => {
   }
 
   function loadProfile(name) {
-    try {
-      const profiles = loadProfilesFromStorage();
-      if (!profiles[name]) return false;
-      const profile = profiles[name];
-      Engine.player = cloneDeep(profile.player || {});
-      currentProfileName = name;
-      setLastProfileName(name);
-      if (profile.scene) currentSceneId = profile.scene;
-      profiles[name].updated_at = new Date().toISOString();
-      saveProfilesToStorage(profiles);
-      updateProfileUI();
-      return true;
-    } catch (err) {
-      console.error("Failed to load profile:", err);
-      return false;
-    }
+  try {
+    const profiles = loadProfilesFromStorage();
+    if (!profiles[name]) return false;
+    const profile = profiles[name];
+
+    // Keep Engine.player reference intact (engine.applyChoice uses internal reference).
+    const newPlayer = cloneDeep(profile.player || {});
+    if (!Engine.player) Engine.player = {};
+    // Clear existing keys then copy new ones
+    Object.keys(Engine.player).forEach(k => delete Engine.player[k]);
+    Object.assign(Engine.player, newPlayer);
+
+    currentProfileName = name;
+    setLastProfileName(name);
+    if (profile.scene) currentSceneId = profile.scene;
+    profiles[name].updated_at = new Date().toISOString();
+    saveProfilesToStorage(profiles);
+    updateProfileUI();
+    return true;
+  } catch (err) {
+    console.error("Failed to load profile:", err);
+    return false;
   }
+}
 
   function createProfile(name) {
     if (!name || !name.trim()) return null;
@@ -1300,9 +1307,12 @@ scene.choices.forEach(choice => {
         if (typeof loadSave === "function") {
           const legacy = loadSave();
           if (legacy && legacy.scene) {
-            Engine.player = legacy;
-            currentSceneId = legacy.scene;
-          }
+			  const newPlayer = cloneDeep(legacy);
+			  if (!Engine.player) Engine.player = {};
+			  Object.keys(Engine.player).forEach(k => delete Engine.player[k]);
+			  Object.assign(Engine.player, newPlayer);
+			  currentSceneId = legacy.scene;
+			}
         }
       } catch (e) {}
       // ensure there is at least one profile
