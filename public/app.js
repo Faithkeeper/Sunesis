@@ -151,26 +151,25 @@ window.RegretSystem = RegretSystem;
    * Tries to hit the server, but falls back to a queue if offline.
    */
   async function saveCurrentProfile() {
-    if (!CURRENT_PROFILE_NAME || !PROFILES[CURRENT_PROFILE_NAME]) return;
-    
-    // 1. Always Save to LocalStorage first (for instant recovery)
-    PROFILES[CURRENT_PROFILE_NAME].scene = currentSceneId;
-    saveProfilesToStorage(PROFILES);
+  if (!currentProfileName || !PROFILES[currentProfileName]) return;
 
-    const dataToSync = {
-      profileName: CURRENT_PROFILE_NAME,
-      playerData: Engine.player,
-      timestamp: Date.now()
-    };
+  // 1. Always Save to LocalStorage first (for instant recovery)
+  PROFILES[currentProfileName].scene = currentSceneId;
+  saveProfilesToStorage(PROFILES);
 
-    // 2. Try to sync with Render/MongoDB
-    if (navigator.onLine) {
-      syncWithServer(dataToSync);
-    } else {
-      queueForLater(dataToSync);
-    }
+  const dataToSync = {
+    profileName: currentProfileName,
+    playerData: Engine.player,
+    timestamp: Date.now()
+  };
+
+  // 2. Try to sync with Render/MongoDB
+  if (navigator.onLine) {
+    syncWithServer(dataToSync);
+  } else {
+    queueForLater(dataToSync);
   }
-
+}
   async function syncWithServer(data) {
     try {
       const response = await fetch('/api/save', {
