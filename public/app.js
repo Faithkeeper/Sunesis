@@ -237,14 +237,103 @@ window.RegretSystem = RegretSystem;
     RegretSystem.reap();
 	
     clearChoices();
-    scene.choices?.forEach(choice => {
-      const btn = createChoiceButton(choice.label, () => {
-        // Apply flags
-        choice.flags?.forEach(f => Engine.player.flags.add(f));
-        renderScene(choice.next);
-      });
-      choicesEl.appendChild(btn);
-    });
+    // (Replace the scene.choices.forEach(choice => { ... }) block in renderScene with this)
+scene.choices.forEach(choice => {
+  const btn = createChoiceButton(choice.label || "(no label)", () => {
+    try {
+      // Let the engine apply the choice (handles stats, flags, reputations, items, history, etc)
+      if (typeof Engine.applyChoice === "function") {
+        Engine.applyChoice(choice);
+      } else {
+        // fallback: if engine missing, be defensive and manually apply flags/stats (not ideal)
+        if (choice.stats) {
+          Engine.player.stats = Engine.player.stats || {};
+          for (let k in choice.stats) {
+            Engine.player.stats[k] = (Number(Engine.player.stats[k]) || 0) + (Number(choice.stats[k]) || 0);
+          }
+        }
+        if (choice.flags) {
+          Engine.player.flags = Engine.player.flags || [];
+          choice.flags.forEach(f => { if (!Engine.player.flags.includes(f)) Engine.player.flags.push(f); });
+        }
+        if (choice.reputation) {
+          Engine.player.reputations = Engine.player.reputations || [];
+          if (!Engine.player.reputations.includes(choice.reputation)) Engine.player.reputations.push(choice.reputation);
+        }
+        if (choice.item) {
+          Engine.player.items = Engine.player.items || [];
+          if (!Engine.player.items.includes(choice.item)) Engine.player.items.push(choice.item);
+        }
+      }
+
+      // Autosave immediately after the mutation
+      saveCurrentProfile();
+
+      const nextId = choice.next;
+
+      if (choice.postText) {
+        const renderedPost = applyTemplates((choice.postText || "").trim());
+        storyEl.innerHTML = renderedPost;
+        if (storyEl) storyEl.scrollTop = 0;
+        clearChoices();
+        const cont = createChoiceButton("Continue", () => {
+          if (nextId && /^act[1-6]_start$/.test(nextId)) {
+            const actIndex = nextId.match(/^act([1-6])_start$/)[1];
+            const actKey = "act" + actIndex;
+            if (!ACTS[actKey]) {
+              const resolved = resolveAndSwitchActIfNeeded(nextId);
+              if (resolved === null) return;
+            } else {
+              currentAct = ACTS[actKey];
+              renderScene(ACTS[actKey].start);
+              return;
+            }
+          }
+          if (!nextId) {
+            updateHUD();
+            updateChoiceVisibilityBasedOnScroll();
+            return;
+          }
+          const resolved = resolveAndSwitchActIfNeeded(nextId);
+          if (resolved !== null) renderScene(resolved);
+        });
+        choicesEl.appendChild(cont);
+        updateHUD();
+        updateChoiceVisibilityBasedOnScroll();
+        return;
+      }
+
+      if (!nextId) {
+        console.warn("Choice has no next:", choice);
+        updateHUD();
+        updateChoiceVisibilityBasedOnScroll();
+        return;
+      }
+
+      if (/^act[1-6]_start$/.test(nextId)) {
+        const actIndex = nextId.match(/^act([1-6])_start$/)[1];
+        const actKey = "act" + actIndex;
+        if (!ACTS[actKey]) {
+          const resolved = resolveAndSwitchActIfNeeded(nextId);
+          if (resolved === null) return;
+        } else {
+          currentAct = ACTS[actKey];
+          renderScene(ACTS[actKey].start);
+          return;
+        }
+      }
+
+      const resolvedNext = resolveAndSwitchActIfNeeded(nextId);
+      if (resolvedNext !== null) renderScene(resolvedNext);
+      else console.warn("Could not resolve next:", nextId);
+
+    } catch (err) {
+      console.error("Error applying choice:", err);
+      alert("An error occurred. See console.");
+    }
+  });
+  choicesEl.appendChild(btn);
+});
   }
 
   function loadProfile(name) {
