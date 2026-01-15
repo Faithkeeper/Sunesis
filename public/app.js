@@ -151,9 +151,10 @@ window.RegretSystem = RegretSystem;
    * Tries to hit the server, but falls back to a queue if offline.
    */
   async function saveCurrentProfile() {
+  // Defensive: ensure the app-level profile variable is present
   if (!currentProfileName || !PROFILES[currentProfileName]) return;
 
-  // 1. Always Save to LocalStorage first (for instant recovery)
+  // 1. Always save locally first (instant recovery)
   PROFILES[currentProfileName].scene = currentSceneId;
   saveProfilesToStorage(PROFILES);
 
@@ -163,13 +164,14 @@ window.RegretSystem = RegretSystem;
     timestamp: Date.now()
   };
 
-  // 2. Try to sync with Render/MongoDB
+  // 2. Try to sync with the server, otherwise queue for later
   if (navigator.onLine) {
     syncWithServer(dataToSync);
   } else {
     queueForLater(dataToSync);
   }
 }
+
   async function syncWithServer(data) {
     try {
       const response = await fetch('/api/save', {
