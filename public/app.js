@@ -268,6 +268,20 @@ scene.choices.forEach(choice => {
 
       // Autosave immediately after the mutation
       saveCurrentProfile();
+	  
+	  // If this choice granted the Path_Noticed flag and player has no late_name, ask for it now
+	const addedPath = (choice.flags || []).some(f => f === "Path_Noticed" || f === "path_noticed");
+	const hasLateName = !!(Engine.player && Engine.player.late_name && Engine.player.late_name.trim().length > 0);
+	if (addedPath && !hasLateName) {
+	  try {
+		// promptForLateName is defined earlier in app.js — this will show the modal/prompt
+		promptForLateName(false);
+		// After promptForLateName returns we update HUD and continue as normal.
+		updateHUD();
+	  } catch (e) {
+		console.warn("Name prompt failed:", e);
+	  }
+	}
 
       const nextId = choice.next;
 
