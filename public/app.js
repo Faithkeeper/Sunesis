@@ -1064,6 +1064,37 @@ scene.choices.forEach(choice => {
         clearChoices();
         updateHUD();
         updateChoiceVisibilityBasedOnScroll();
+		
+		// CHECK FOR INPUT FIELD
+		if (scene.input) {
+		  const inputContainer = document.createElement("div");
+		  inputContainer.className = "input-container";
+
+		  const inputField = document.createElement("input");
+		  inputField.type = "text";
+		  inputField.className = "story-input";
+		  inputField.placeholder = scene.input.placeholder || "Type here...";
+
+		  const submitBtn = document.createElement("button");
+		  submitBtn.className = "choice-btn";
+		  submitBtn.innerText = scene.input.buttonLabel || "Submit";
+
+		  submitBtn.onclick = () => {
+			const val = inputField.value.trim();
+			if (val) {
+			  // Save the value to the player object
+			  Engine.player[scene.input.key] = val;
+			  Engine.save();
+			  
+			  // Move to next scene
+			  renderScene(scene.next);
+			}
+		  };
+
+		  inputContainer.appendChild(inputField);
+		  inputContainer.appendChild(submitBtn);
+		  choicesEl.appendChild(inputContainer);
+		
         return;
       }
     }
