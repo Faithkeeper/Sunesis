@@ -523,7 +523,18 @@ You don't just feel the phone call anymore; you feel the weight of the connectio
 
 (New System Text): CONNECTION STABILIZED.
 
-You aren't just a passenger anymore. You’ve just signaled to the system that you are awake.`,
+You aren't just a passenger anymore. You’ve just signaled to the system that you are awake.
+
+The system pauses. The static clears for a moment.
+    
+    [SYSTEM QUERY]
+    Identity verification required before proceeding.`,
+		input: {
+		type: "text",
+		key: "name", // This saves to Engine.player.name
+		placeholder: "Enter designation...",
+		buttonLabel: "Confirm Identity"
+	  },
           // triggers: ["late_name_ready"], // now handled by app logic
           next: "act2_start"
         },
