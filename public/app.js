@@ -220,9 +220,36 @@ window.RegretSystem = RegretSystem;
   // -------------------------
 
   function renderScene(sceneId) {
+	// --- SAFETY BLOCK START ---
+    if (!currentAct) {
+        console.warn("CRITICAL: currentAct is missing. Attempting to repair...");
+        
+        // 1. Try to recover the Act based on the player's save data
+        const savedActId = (Engine.player && Engine.player.currentActId) ? Engine.player.currentActId : "act1";
+        
+        // 2. Map the ID to the global window object
+        const actMap = {
+            "act1": window.ACT1,
+            "act2": window.ACT2,
+            "act3": window.ACT3,
+            "act4": window.ACT4,
+            "act6": window.ACT6 
+        };
+        
+        currentAct = actMap[savedActId];
+
+        // 3. If it's STILL missing, we have a loading error
+        if (!currentAct) {
+            console.error(`ERROR: Could not find Act data for '${savedActId}'. Check if act${savedActId.replace('act','').js} is loaded in index.html and has no syntax errors.`);
+            document.getElementById('story').innerHTML = `<p style="color:red">[SYSTEM ERROR] Data for ${savedActId} is corrupted or missing.</p>`;
+            return;
+        }
+    }
+    // --- SAFETY BLOCK END ---
+
     const scene = currentAct.scenes[sceneId];
     if (!scene) {
-        console.error("Scene not found:", sceneId);
+        console.error(`Scene '${sceneId}' not found in Act '${currentAct.id}'`);
         return;
     }
 
