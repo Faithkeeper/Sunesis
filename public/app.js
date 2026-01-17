@@ -1348,4 +1348,5 @@ initGame();
   window.__saveProfileNow = () => saveCurrentProfile();
   window.__switchProfile = (n) => loadProfile(n);
 
-})();
+}();
+
