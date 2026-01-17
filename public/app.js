@@ -1296,8 +1296,10 @@ window.RegretSystem = RegretSystem;
   if (!currentSceneId && currentAct) currentSceneId = currentAct.start;
   renderScene(currentSceneId);
 
-// 1. Consolidate the Online Sync Listener
-window.addEventListener('online', async () => {
+// -------------------------
+  // 1. Consolidate the Online Sync Listener
+  // -------------------------
+  window.addEventListener('online', async () => {
     console.log("[SYSTEM] Connection restored. Synchronizing data...");
     
     // Use the standardized key
@@ -1319,13 +1321,17 @@ window.addEventListener('online', async () => {
             console.error("[SYSTEM] Sync failed. Will retry later.");
         }
     }
-});
+  });
 
-// 2. Main Initialization Block
-function initGame() {
+  // -------------------------
+  // 2. Main Initialization Block
+  // -------------------------
+  function initGame() {
     initProfilesAndLoad();
 
     if (restartBtn) {
+        // Remove old listener to prevent duplicates if re-running
+        restartBtn.removeEventListener("click", restartGamePrompt);
         restartBtn.addEventListener("click", restartGamePrompt);
     }
 
@@ -1335,17 +1341,17 @@ function initGame() {
     }
     
     renderScene(currentSceneId);
-}
+  }
 
-// 3. Final Execution and Closure
-initGame();
+  // 3. Final Execution
+  initGame();
 
-})(); // Close the main IIFE correctly
-
-  // Expose helpers for debugging
+  // -------------------------
+  // 4. Debug Helpers (Inside the IIFE scope)
+  // -------------------------
   window.__profiles = () => loadProfilesFromStorage();
   window.__currentProfile = () => currentProfileName;
   window.__saveProfileNow = () => saveCurrentProfile();
   window.__switchProfile = (n) => loadProfile(n);
 
-})();
+})(); // <--- THIS must be the ONLY closing tag at the end
