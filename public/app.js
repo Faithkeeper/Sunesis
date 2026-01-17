@@ -195,7 +195,7 @@ window.RegretSystem = RegretSystem;
   /**
    * Listener: When internet returns, flush the queue
    */
-  window.addEventListener('online', async () => {
+ /*  window.addEventListener('online', async () => {
     console.log("[SYSTEM] Connection restored. Flushing offline queue...");
     const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]");
     
@@ -214,141 +214,91 @@ window.RegretSystem = RegretSystem;
         console.error("[SYSTEM] Sync failed, will retry later.");
       }
     }
-  });
+  }); */
   // -------------------------
   // Existing Navigation Logic (Updated to use the new save)
   // -------------------------
 
   function renderScene(sceneId) {
     const scene = currentAct.scenes[sceneId];
-    if (!scene) return;
-    currentSceneId = sceneId;
+    if (!scene) {
+        console.error("Scene not found:", sceneId);
+        return;
+    }
 
-    // Trigger the save whenever a scene renders
-    saveCurrentProfile();
-
+    // 1. Clear previous content
     storyEl.innerHTML = "";
+    choicesEl.innerHTML = "";
+
+    // 2. Render Text
     const p = document.createElement("p");
-    p.className = "scene-text";
     p.innerHTML = scene.text.replace(/\n/g, "<br>");
     storyEl.appendChild(p);
-	
-	// Trigger the Echo
-    RegretSystem.reap();
-	
-    clearChoices();
-    // (Replace the scene.choices.forEach(choice => { ... }) block in renderScene with this)
-scene.choices.forEach(choice => {
-  const btn = createChoiceButton(choice.label || "(no label)", () => {
-    try {
-      // Let the engine apply the choice (handles stats, flags, reputations, items, history, etc)
-      if (typeof Engine.applyChoice === "function") {
-        Engine.applyChoice(choice);
-      } else {
-        // fallback: if engine missing, be defensive and manually apply flags/stats (not ideal)
-        if (choice.stats) {
-          Engine.player.stats = Engine.player.stats || {};
-          for (let k in choice.stats) {
-            Engine.player.stats[k] = (Number(Engine.player.stats[k]) || 0) + (Number(choice.stats[k]) || 0);
-          }
-        }
-        if (choice.flags) {
-          Engine.player.flags = Engine.player.flags || [];
-          choice.flags.forEach(f => { if (!Engine.player.flags.includes(f)) Engine.player.flags.push(f); });
-        }
-        if (choice.reputation) {
-          Engine.player.reputations = Engine.player.reputations || [];
-          if (!Engine.player.reputations.includes(choice.reputation)) Engine.player.reputations.push(choice.reputation);
-        }
-        if (choice.item) {
-          Engine.player.items = Engine.player.items || [];
-          if (!Engine.player.items.includes(choice.item)) Engine.player.items.push(choice.item);
-        }
-      }
 
-      // Autosave immediately after the mutation
-      saveCurrentProfile();
-	  
-	  // If this choice granted the Path_Noticed flag and player has no late_name, ask for it now
-	const addedPath = (choice.flags || []).some(f => f === "Path_Noticed" || f === "path_noticed");
-	const hasLateName = !!(Engine.player && Engine.player.late_name && Engine.player.late_name.trim().length > 0);
-	if (addedPath && !hasLateName) {
-	  try {
-		// promptForLateName is defined earlier in app.js — this will show the modal/prompt
-		promptForLateName(false);
-		// After promptForLateName returns we update HUD and continue as normal.
-		updateHUD();
-	  } catch (e) {
-		console.warn("Name prompt failed:", e);
-	  }
-	}
+    // 3. Handle Text Input (The Identity Prompt)
+    if (scene.input) {
+        const inputWrap = document.createElement("div");
+        inputWrap.className = "input-container";
 
-      const nextId = choice.next;
+        const field = document.createElement("input");
+        field.type = "text";
+        field.className = "story-input";
+        field.placeholder = scene.input.placeholder || "Type here...";
 
-      if (choice.postText) {
-        const renderedPost = applyTemplates((choice.postText || "").trim());
-        storyEl.innerHTML = renderedPost;
-        if (storyEl) storyEl.scrollTop = 0;
-        clearChoices();
-        const cont = createChoiceButton("Continue", () => {
-          if (nextId && /^act[1-6]_start$/.test(nextId)) {
-            const actIndex = nextId.match(/^act([1-6])_start$/)[1];
-            const actKey = "act" + actIndex;
-            if (!ACTS[actKey]) {
-              const resolved = resolveAndSwitchActIfNeeded(nextId);
-              if (resolved === null) return;
-            } else {
-              currentAct = ACTS[actKey];
-              renderScene(ACTS[actKey].start);
-              return;
+        const btn = document.createElement("button");
+        btn.className = "choice-btn";
+        btn.innerText = scene.input.buttonLabel || "Submit";
+
+        btn.onclick = () => {
+            const val = field.value.trim();
+            if (val) {
+                Engine.player[scene.input.key] = val; // Saves the name
+                saveCurrentProfile(); // Syncs to server/local
+                renderScene(scene.next);
             }
-          }
-          if (!nextId) {
-            updateHUD();
-            updateChoiceVisibilityBasedOnScroll();
-            return;
-          }
-          const resolved = resolveAndSwitchActIfNeeded(nextId);
-          if (resolved !== null) renderScene(resolved);
-        });
-        choicesEl.appendChild(cont);
-        updateHUD();
-        updateChoiceVisibilityBasedOnScroll();
-        return;
-      }
+        };
 
-      if (!nextId) {
-        console.warn("Choice has no next:", choice);
-        updateHUD();
-        updateChoiceVisibilityBasedOnScroll();
-        return;
-      }
-
-      if (/^act[1-6]_start$/.test(nextId)) {
-        const actIndex = nextId.match(/^act([1-6])_start$/)[1];
-        const actKey = "act" + actIndex;
-        if (!ACTS[actKey]) {
-          const resolved = resolveAndSwitchActIfNeeded(nextId);
-          if (resolved === null) return;
-        } else {
-          currentAct = ACTS[actKey];
-          renderScene(ACTS[actKey].start);
-          return;
-        }
-      }
-
-      const resolvedNext = resolveAndSwitchActIfNeeded(nextId);
-      if (resolvedNext !== null) renderScene(resolvedNext);
-      else console.warn("Could not resolve next:", nextId);
-
-    } catch (err) {
-      console.error("Error applying choice:", err);
-      alert("An error occurred. See console.");
+        inputWrap.appendChild(field);
+        inputWrap.appendChild(btn);
+        choicesEl.appendChild(inputWrap);
+        return; // Important: Stop here so we don't render buttons
     }
-  });
-  choicesEl.appendChild(btn);
-});
-  }
+
+    // 4. Render Choices (The Branching Path)
+    scene.choices.forEach(choice => {
+        const btn = document.createElement("button");
+        btn.className = "choice-btn";
+        btn.innerHTML = choice.label;
+
+        btn.onclick = () => {
+            // Plant seeds of regret if the choice has an onChoose
+            if (choice.onChoose) choice.onChoose();
+
+            // Apply stats or flags
+            if (choice.stats) {
+                for (let s in choice.stats) Engine.player.stats[s] += choice.stats[s];
+            }
+            
+            // Handle post-text or transition
+            if (choice.postText) {
+                p.innerHTML += `<div class='post-text'>${choice.postText}</div>`;
+                btn.disabled = true;
+                // Add a "Continue" button to move to next scene
+                const contBtn = document.createElement("button");
+                contBtn.innerText = "Continue";
+                contBtn.onclick = () => renderScene(choice.next);
+                choicesEl.appendChild(contBtn);
+            } else {
+                renderScene(choice.next);
+            }
+            
+            saveCurrentProfile();
+        };
+        choicesEl.appendChild(btn);
+    });
+
+    updateHUD(); // Refresh stats on screen
+}
 
   function loadProfile(name) {
   try {
@@ -1042,7 +992,7 @@ scene.choices.forEach(choice => {
   if (storyEl) storyEl.addEventListener("scroll", () => { requestAnimationFrame(updateChoiceVisibilityBasedOnScroll); });
 
   // The main renderScene function (uses templates, enterActions, and autosave after choices)
-  function renderScene(sceneId) {
+  /* function renderScene(sceneId) {
     if (!sceneId) return;
     const owningAct = findActForSceneId(sceneId);
     if (owningAct && owningAct !== currentAct) currentAct = owningAct;
@@ -1064,37 +1014,6 @@ scene.choices.forEach(choice => {
         clearChoices();
         updateHUD();
         updateChoiceVisibilityBasedOnScroll();
-		
-		// CHECK FOR INPUT FIELD
-		if (scene.input) {
-		  const inputContainer = document.createElement("div");
-		  inputContainer.className = "input-container";
-
-		  const inputField = document.createElement("input");
-		  inputField.type = "text";
-		  inputField.className = "story-input";
-		  inputField.placeholder = scene.input.placeholder || "Type here...";
-
-		  const submitBtn = document.createElement("button");
-		  submitBtn.className = "choice-btn";
-		  submitBtn.innerText = scene.input.buttonLabel || "Submit";
-
-		  submitBtn.onclick = () => {
-			const val = inputField.value.trim();
-			if (val) {
-			  // Save the value to the player object
-			  Engine.player[scene.input.key] = val;
-			  Engine.save();
-			  
-			  // Move to next scene
-			  renderScene(scene.next);
-			}
-		  };
-
-		  inputContainer.appendChild(inputField);
-		  inputContainer.appendChild(submitBtn);
-		  choicesEl.appendChild(inputContainer);
-		
         return;
       }
     }
@@ -1245,7 +1164,7 @@ scene.choices.forEach(choice => {
 
     updateHUD();
     updateChoiceVisibilityBasedOnScroll();
-  }
+  } */
 
   // -------------------------
   // Restart logic (profile-aware) — FIX: ensure restart button reliably attached after init
@@ -1377,30 +1296,51 @@ scene.choices.forEach(choice => {
   if (!currentSceneId && currentAct) currentSceneId = currentAct.start;
   renderScene(currentSceneId);
 
+// 1. Consolidate the Online Sync Listener
 window.addEventListener('online', async () => {
-  console.log("[SYSTEM] Connection restored. Synchronizing data...");
-  
-  const saveKey = 'apokalupsis_offline_queue';
-  const queue = JSON.parse(localStorage.getItem(saveKey) || "[]");
+    console.log("[SYSTEM] Connection restored. Synchronizing data...");
+    
+    // Use the standardized key
+    const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]");
 
-  if (queue.length > 0) {
-    try {
-      // Send the entire backlog to the server
-      const response = await fetch('/api/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ events: queue })
-      });
+    if (queue.length > 0) {
+        try {
+            const response = await fetch('/api/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ events: queue })
+            });
 
-      if (response.ok) {
-        console.log("[SYSTEM] Sync complete. Local queue cleared.");
-        localStorage.removeItem(saveKey);
-      }
-    } catch (err) {
-      console.error("[SYSTEM] Sync failed. Will retry next time connection is stable.");
+            if (response.ok) {
+                console.log("[SYSTEM] Sync complete. Local queue cleared.");
+                localStorage.removeItem(OFFLINE_QUEUE_KEY);
+            }
+        } catch (err) {
+            console.error("[SYSTEM] Sync failed. Will retry later.");
+        }
     }
-  }
 });
+
+// 2. Main Initialization Block
+function initGame() {
+    initProfilesAndLoad();
+
+    if (restartBtn) {
+        restartBtn.addEventListener("click", restartGamePrompt);
+    }
+
+    // Default start if no scene is loaded
+    if (!currentSceneId && currentAct) {
+        currentSceneId = currentAct.start;
+    }
+    
+    renderScene(currentSceneId);
+}
+
+// 3. Final Execution and Closure
+initGame();
+
+})(); // Close the main IIFE correctly
 
   // Expose helpers for debugging
   window.__profiles = () => loadProfilesFromStorage();
