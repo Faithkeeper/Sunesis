@@ -72,14 +72,29 @@
 // Expose it so act scripts can use it
 window.RegretSystem = RegretSystem;
 
-  function clearChoices() { choicesEl.innerHTML = ""; }
+  function clearChoices() {
+  choicesEl.innerHTML = "";
+  choicesEl.style.display = "none";
+}
   function createChoiceButton(label, onClick) {
-    const btn = document.createElement("button");
-    btn.className = "choice";
-    btn.textContent = "▸ " + label;
-    btn.onclick = onClick;
-    return btn;
-  }
+  const btn = document.createElement("button");
+  btn.className = "choice";
+  btn.textContent = "▸ " + label;
+
+  btn.onclick = () => {
+    // lock all choices immediately
+    Array.from(choicesEl.children).forEach(b => b.disabled = true);
+
+    // run scene logic
+    onClick();
+
+    // autosave after EVERY choice
+    saveCurrentProfile();
+  };
+
+  return btn;
+}
+
 
   const Engine = window.Engine || { player: {} }; // Engine.applyChoice must exist in your environment
   if (!Engine) {
@@ -298,6 +313,8 @@ function renderScene(sceneId) {
 							renderScene(scene.next);
 						}
 					};
+					choicesEl.style.display = "";
+
                     choicesEl.appendChild(contBtn);
                     
                     // Scroll to the bottom so the player sees the new text
@@ -312,6 +329,9 @@ function renderScene(sceneId) {
 
         inputWrap.appendChild(field);
         inputWrap.appendChild(btn);
+		
+		choicesEl.style.display = "";
+		
         choicesEl.appendChild(inputWrap);
         return; // Stop here! Don't render normal choices.
     }
@@ -351,12 +371,16 @@ function renderScene(sceneId) {
                         renderScene(choice.next);
                         saveCurrentProfile();
                     };
+					choicesEl.style.display = "";
+					
                     choicesEl.appendChild(contBtn);
                 } else {
                     renderScene(choice.next);
                     saveCurrentProfile();
                 }
             };
+			choicesEl.style.display = "";
+			
             choicesEl.appendChild(btn);
         });
     }
@@ -675,7 +699,9 @@ function renderScene(sceneId) {
     choicesEl.innerHTML = "";
     const dl = createChoiceButton("Download migration payload (JSON)", () => { downloadMigrationPayload("migration_payload_book1.json"); });
     const inspect = createChoiceButton("Inspect player (console)", () => { console.log("Player state:", Engine.player); alert("Player state logged to console."); });
-    choicesEl.appendChild(dl);
+    choicesEl.style.display = "";
+
+	choicesEl.appendChild(dl);
     choicesEl.appendChild(inspect);
     updateHUD();
     choicesEl.style.display = "";
@@ -759,6 +785,8 @@ function renderScene(sceneId) {
     const no = createChoiceButton("NO — Walk away", () => {
       showSystemIDCard("GAMMA", friction, core);
     });
+	choicesEl.style.display = "";
+	
     choicesEl.appendChild(yes);
     choicesEl.appendChild(no);
     updateHUD();
@@ -836,7 +864,9 @@ function renderScene(sceneId) {
         const inspect = createChoiceButton("Inspect player (console)", () => { console.log("Player state:", Engine.player); alert("Player state logged to console."); });
         const clear = createChoiceButton("Clear save & restart", () => { if (confirm("Clear save and restart from act 1?")) { if (typeof clearSave === "function") clearSave(); resetPlayerToDefaults(1); currentact = actS.act1; renderScene(currentact.start); }});
         const close = createChoiceButton("Close (return)", () => { renderScene(currentSceneId); });
-        choicesEl.appendChild(dl); choicesEl.appendChild(inspect); choicesEl.appendChild(clear); choicesEl.appendChild(close);
+        choicesEl.style.display = "";
+
+		choicesEl.appendChild(dl); choicesEl.appendChild(inspect); choicesEl.appendChild(clear); choicesEl.appendChild(close);
         updateHUD();
         choicesEl.style.display = "";
         return null;
@@ -1036,8 +1066,8 @@ function renderScene(sceneId) {
   function updateChoiceVisibilityBasedOnScroll() {
     if (!choicesEl) return;
     if (isReaderMode()) {
-      if (isStoryAtBottom(8)) choicesEl.style.display = "";
-      else choicesEl.style.display = "none";
+      // if (isStoryAtBottom(8)) choicesEl.style.display = "";
+      // else choicesEl.style.display = "none";
     } else {
       choicesEl.style.display = "";
     }
