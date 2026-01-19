@@ -249,141 +249,86 @@ function renderScene(sceneId) {
     // ----------------------------------------------
     // 2. RENDER CONTENT
     // ----------------------------------------------
-    // Clear previous
-    storyEl.innerHTML = "";
-    choicesEl.innerHTML = "";
+    // Clear UI
+storyEl.innerHTML = "";
+choicesEl.innerHTML = "";
 
-    // Text
-    const p = document.createElement("p");
-    p.innerHTML = scene.text.replace(/\n/g, "<br>");
-    storyEl.appendChild(p);
+// Render text
+const p = document.createElement("p");
+p.innerHTML = scene.text.replace(/\n/g, "<br>");
+storyEl.appendChild(p);
 
-    // ----------------------------------------------
-    // 3. HANDLE INPUT (The Name Prompt Fix)
-    // ----------------------------------------------
-    if (scene.input) {
-        const inputWrap = document.createElement("div");
-        inputWrap.className = "input-container";
+// ⛔ INPUT SCENE OVERRIDES CHOICES
+if (scene.input) {
+    const wrap = document.createElement("div");
+    wrap.className = "input-container";
 
-        const field = document.createElement("input");
-        field.type = "text";
-        field.className = "story-input";
-        field.placeholder = scene.input.placeholder || "Type here...";
+    const field = document.createElement("input");
+    field.type = "text";
+    field.placeholder = scene.input.placeholder || "";
 
+    const btn = document.createElement("button");
+    btn.textContent = scene.input.buttonLabel || "Submit";
+
+    btn.onclick = () => {
+        const val = field.value.trim();
+        if (!val) return;
+
+        Engine.player[scene.input.key] = val;
+        saveCurrentProfile();
+        renderScene(scene.next);
+    };
+
+    wrap.appendChild(field);
+    wrap.appendChild(btn);
+    choicesEl.appendChild(wrap);
+    return; // 🔥 REQUIRED
+}
+
+// ✅ NORMAL CHOICES LIVE HERE
+if (scene.choices) {
+    scene.choices.forEach(choice => {
         const btn = document.createElement("button");
-        btn.className = "choice-btn";
-        btn.innerText = scene.input.buttonLabel || "Submit";
+        btn.textContent = choice.label;
 
         btn.onclick = () => {
-                // 1. Plant seeds (if any)
-                if (choice.onChoose) choice.onChoose(); 
-                
-                // 2. Apply Stats
-                if (choice.stats) {
-                    for (let s in choice.stats) Engine.player.stats[s] += choice.stats[s];
+            if (choice.onChoose) choice.onChoose();
+
+            if (choice.stats) {
+                for (let s in choice.stats) {
+                    Engine.player.stats[s] += choice.stats[s];
                 }
+            }
 
-                // 3. Apply Flags (THIS WAS MISSING)
-                if (choice.flags) {
-                     Engine.player.flags = Engine.player.flags || [];
-                     choice.flags.forEach(f => {
-                         if (!Engine.player.flags.includes(f)) Engine.player.flags.push(f);
-                     });
-                }
+            if (choice.flags) {
+                Engine.player.flags ||= [];
+                choice.flags.forEach(f => {
+                    if (!Engine.player.flags.includes(f)) {
+                        Engine.player.flags.push(f);
+                    }
+                });
+            }
 
-                // 4. Handle Post-Text (The "Continue" flow)
-                if (choice.postText) {
-                    p.innerHTML += `<div class='post-text'>${choice.postText}</div>`;
-                    
-                    // Disable all buttons so you can't click twice
-                    Array.from(choicesEl.children).forEach(b => b.disabled = true);
-                    
-                    // Create the "Continue" button
-                    const contBtn = document.createElement("button");
-                    contBtn.className = "choice-btn";
-                    contBtn.innerText = "Continue";
-                    contBtn.style.marginTop = "1rem";
-                    
-                    // When clicking continue, GO to the next scene
-                    contBtn.onclick = () => {
-                        const val = field.value.trim();
-						if (val) {
-							Engine.player[scene.input.key] = val; // Saves name to Engine.player
-							saveCurrentProfile();
-							renderScene(scene.next);
-						}
-					};
-					choicesEl.style.display = "";
+            if (choice.postText) {
+                p.innerHTML += `<div class="post-text">${choice.postText}</div>`;
+                Array.from(choicesEl.children).forEach(b => b.disabled = true);
 
-                    choicesEl.appendChild(contBtn);
-                    
-                    // Scroll to the bottom so the player sees the new text
-                    choicesEl.scrollIntoView({ behavior: "smooth" });
-                } else {
-                    // Immediate transition if no postText
-                    renderScene(choice.next);
-                }
-                
-                saveCurrentProfile();
-            };
-
-        inputWrap.appendChild(field);
-        inputWrap.appendChild(btn);
-		
-		choicesEl.style.display = "";
-		
-        choicesEl.appendChild(inputWrap);
-        return; // Stop here! Don't render normal choices.
-    }
-
-    // ----------------------------------------------
-    // 4. RENDER CHOICES
-    // ----------------------------------------------
-    if (scene.choices) {
-        scene.choices.forEach(choice => {
-            // Check visibility conditions
-            if (choice.condition && !choice.condition()) return;
-
-            const btn = document.createElement("button");
-            btn.className = "choice-btn";
-            btn.innerHTML = choice.label;
-
-            btn.onclick = () => {
-                if (choice.onChoose) choice.onChoose(); // Plant seeds
-                
-                // Handle stats
-                if (choice.stats) {
-                    for (let s in choice.stats) Engine.player.stats[s] += choice.stats[s];
-                }
-
-                // Post-text or Move Next
-                if (choice.postText) {
-                    p.innerHTML += `<div class='post-text'>${choice.postText}</div>`;
-                    // Disable all buttons to prevent double-clicking
-                    Array.from(choicesEl.children).forEach(b => b.disabled = true);
-                    
-                    // Create Continue button
-                    const contBtn = document.createElement("button");
-                    contBtn.className = "choice-btn";
-                    contBtn.innerText = "Continue";
-                    contBtn.style.marginTop = "1rem";
-                    contBtn.onclick = () => {
-                        renderScene(choice.next);
-                        saveCurrentProfile();
-                    };
-					choicesEl.style.display = "";
-					
-                    choicesEl.appendChild(contBtn);
-                } else {
+                const cont = document.createElement("button");
+                cont.textContent = "Continue";
+                cont.onclick = () => {
                     renderScene(choice.next);
                     saveCurrentProfile();
-                }
-            };
-			choicesEl.style.display = "";
-			
-            choicesEl.appendChild(btn);
-        });
-    }
+                };
+                choicesEl.appendChild(cont);
+            } else {
+                renderScene(choice.next);
+                saveCurrentProfile();
+            }
+        };
+
+        choicesEl.appendChild(btn);
+    });
+}
 
     updateHUD();
 }
