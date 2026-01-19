@@ -250,40 +250,49 @@ function renderScene(sceneId) {
     // 2. RENDER CONTENT
     // ----------------------------------------------
     // Clear UI
-storyEl.innerHTML = "";
-choicesEl.innerHTML = "";
+	storyEl.innerHTML = "";
+	choicesEl.innerHTML = "";
 
-// Render text
-const p = document.createElement("p");
-p.innerHTML = scene.text.replace(/\n/g, "<br>");
-storyEl.appendChild(p);
+	// Render text
+	const p = document.createElement("p");
+	p.innerHTML = scene.text.replace(/\n/g, "<br>");
+	storyEl.appendChild(p);
 
-// ⛔ INPUT SCENE OVERRIDES CHOICES
-if (scene.input) {
-    const wrap = document.createElement("div");
-    wrap.className = "input-container";
+	clearChoices();
 
-    const field = document.createElement("input");
-    field.type = "text";
-    field.placeholder = scene.input.placeholder || "";
+	// 🚨 INPUT TAKES ABSOLUTE PRIORITY
+	if (scene.input) {
+	  const inputContainer = document.createElement("div");
+	  inputContainer.className = "input-container";
 
-    const btn = document.createElement("button");
-    btn.textContent = scene.input.buttonLabel || "Submit";
+	  const inputField = document.createElement("input");
+	  inputField.type = "text";
+	  inputField.className = "story-input";
+	  inputField.placeholder = scene.input.placeholder || "Type here...";
 
-    btn.onclick = () => {
-        const val = field.value.trim();
-        if (!val) return;
+	  const submitBtn = document.createElement("button");
+	  submitBtn.className = "choice-btn";
+	  submitBtn.innerText = scene.input.buttonLabel || "Submit";
 
-        Engine.player[scene.input.key] = val;
-        saveCurrentProfile();
-        renderScene(scene.next);
-    };
+	  submitBtn.onclick = () => {
+		const val = inputField.value.trim();
+		if (!val) return;
 
-    wrap.appendChild(field);
-    wrap.appendChild(btn);
-    choicesEl.appendChild(wrap);
-    return; // 🔥 REQUIRED
-}
+		Engine.player[scene.input.key] = val;
+		saveCurrentProfile();
+
+		const dest = resolveAndSwitchActIfNeeded(scene.next);
+		if (dest !== null) renderScene(dest);
+	  };
+
+	  inputContainer.appendChild(inputField);
+	  inputContainer.appendChild(submitBtn);
+	  choicesEl.appendChild(inputContainer);
+	  updateHUD();
+	  updateChoiceVisibilityBasedOnScroll();
+	  return; // ⛔ NOTHING ELSE RENDERS
+	}
+
 
 // ✅ NORMAL CHOICES LIVE HERE
 if (scene.choices) {
@@ -1011,8 +1020,8 @@ if (scene.choices) {
   function updateChoiceVisibilityBasedOnScroll() {
     if (!choicesEl) return;
     if (isReaderMode()) {
-      // if (isStoryAtBottom(8)) choicesEl.style.display = "";
-      // else choicesEl.style.display = "none";
+       if (isStoryAtBottom(8)) choicesEl.style.display = "";
+       else choicesEl.style.display = "none";
     } else {
       choicesEl.style.display = "";
     }
