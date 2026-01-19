@@ -193,7 +193,6 @@ window.RegretSystem = RegretSystem;
   }
 
 function renderScene(sceneId) {
-    function renderScene(sceneId) {
     // ----------------------------------------------
     // 1. SAFETY BLOCK: Recover if Act is missing
     // ----------------------------------------------
@@ -292,9 +291,13 @@ function renderScene(sceneId) {
                     
                     // When clicking continue, GO to the next scene
                     contBtn.onclick = () => {
-                        renderScene(choice.next);
-                        saveCurrentProfile();
-                    };
+                        const val = field.value.trim();
+						if (val) {
+							Engine.player[scene.input.key] = val; // Saves name to Engine.player
+							saveCurrentProfile();
+							renderScene(scene.next);
+						}
+					};
                     choicesEl.appendChild(contBtn);
                     
                     // Scroll to the bottom so the player sees the new text
@@ -1217,39 +1220,31 @@ function renderScene(sceneId) {
   // ------------------------------------------
   // INIT LOGIC
   // ------------------------------------------
+  // --- BOTTOM OF FILE START ---
   function initGame() {
     initProfilesAndLoad();
 
-    // Attach restart button safely
     if (restartBtn) {
         restartBtn.onclick = restartGamePrompt;
     }
 
-    // If no scene loaded yet, verify currentact exists and start
     if (!currentSceneId) {
         if (currentact) {
             currentSceneId = currentact.start;
         } else if (Engine.player && Engine.player.currentactId) {
-            // Fallback for reload
             currentSceneId = window[Engine.player.currentactId.toUpperCase()]?.start || "act1_scene1";
         }
     }
     
-    // Slight delay to ensure DOM is ready
     setTimeout(() => renderScene(currentSceneId), 50);
   }
 
-  // ------------------------------------------
-  // DEBUG HELPERS (Must be inside the IIFE)
-  // ------------------------------------------
+  // Debug Helpers
   window.__profiles = () => loadProfilesFromStorage();
   window.__currentProfile = () => currentProfileName;
   window.__saveProfileNow = () => saveCurrentProfile();
   
-  // ------------------------------------------
-  // START THE ENGINE
-  // ------------------------------------------
-  // Wait for the browser to breathe before starting
+  // Start the engine
   window.addEventListener('load', initGame);
 
-})(); // <--- THIS IS THE ONLY CLOSING BRACKET YOU NEED
+})(); // Final closing bracket for the file
