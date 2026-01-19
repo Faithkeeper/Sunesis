@@ -202,11 +202,12 @@ function renderScene(sceneId) {
         
         // Manual link to the global window objects
         const actMap = {
-            "act1": window.act1,
-            "act2": window.act2,
-            "act3": window.act3,
-            "act4": window.act4,
-            "act6": window.act6
+            act1: window.act1 || window.ACT1,
+			act2: window.act2 || window.ACT2,
+			act3: window.act3 || window.ACT3,
+			act4: window.act4 || window.ACT4,
+			act5: window.act5 || window.ACT5,
+			act6: window.act6 || window.ACT6
         };
         currentact = actMap[savedactId];
 
@@ -1209,4 +1210,4 @@ function renderScene(sceneId) {
   // Wait for the browser to breathe before starting
   window.addEventListener('load', initGame);
 
-})(); // <--- THIS IS THE ONLY CLOSING BRACKET I NEED
+})(); // <--- THIS IS THE ONLY CLOSING BRACKET YOU NEED
