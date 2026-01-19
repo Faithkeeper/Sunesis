@@ -202,12 +202,16 @@ function renderScene(sceneId) {
         
         // Manual link to the global window objects
         const actMap = {
-            act1: window.act1 || window.ACT1,
-			act2: window.act2 || window.ACT2,
-			act3: window.act3 || window.ACT3,
-			act4: window.act4 || window.ACT4,
-			act5: window.act5 || window.ACT5,
-			act6: window.act6 || window.ACT6
+            // Fix: Use uppercase window.ACT1, ACT2 etc to match your files
+  // Fix: Use uppercase window.ACT1, ACT2 etc to match your files
+	  const actS = {
+		act1: window.ACT1,
+		act2: window.ACT2,
+		act3: window.ACT3,
+		act4: window.ACT4,
+		act5: window.ACT5,
+		act6: window.ACT6
+	  };
         };
         currentact = actMap[savedactId];
 
@@ -255,15 +259,52 @@ function renderScene(sceneId) {
         btn.className = "choice-btn";
         btn.innerText = scene.input.buttonLabel || "Submit";
 
-        // Logic to save name and move on
         btn.onclick = () => {
-            const val = field.value.trim();
-            if (val) {
-                Engine.player[scene.input.key] = val; // Saves to Engine.player.name
+                // 1. Plant seeds (if any)
+                if (choice.onChoose) choice.onChoose(); 
+                
+                // 2. Apply Stats
+                if (choice.stats) {
+                    for (let s in choice.stats) Engine.player.stats[s] += choice.stats[s];
+                }
+
+                // 3. Apply Flags (THIS WAS MISSING)
+                if (choice.flags) {
+                     Engine.player.flags = Engine.player.flags || [];
+                     choice.flags.forEach(f => {
+                         if (!Engine.player.flags.includes(f)) Engine.player.flags.push(f);
+                     });
+                }
+
+                // 4. Handle Post-Text (The "Continue" flow)
+                if (choice.postText) {
+                    p.innerHTML += `<div class='post-text'>${choice.postText}</div>`;
+                    
+                    // Disable all buttons so you can't click twice
+                    Array.from(choicesEl.children).forEach(b => b.disabled = true);
+                    
+                    // Create the "Continue" button
+                    const contBtn = document.createElement("button");
+                    contBtn.className = "choice-btn";
+                    contBtn.innerText = "Continue";
+                    contBtn.style.marginTop = "1rem";
+                    
+                    // When clicking continue, GO to the next scene
+                    contBtn.onclick = () => {
+                        renderScene(choice.next);
+                        saveCurrentProfile();
+                    };
+                    choicesEl.appendChild(contBtn);
+                    
+                    // Scroll to the bottom so the player sees the new text
+                    choicesEl.scrollIntoView({ behavior: "smooth" });
+                } else {
+                    // Immediate transition if no postText
+                    renderScene(choice.next);
+                }
+                
                 saveCurrentProfile();
-                renderScene(scene.next);
-            }
-        };
+            };
 
         inputWrap.appendChild(field);
         inputWrap.appendChild(btn);
