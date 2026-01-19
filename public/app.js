@@ -193,27 +193,26 @@ window.RegretSystem = RegretSystem;
   }
 
 function renderScene(sceneId) {
+    function renderScene(sceneId) {
     // ----------------------------------------------
-    // 1. SAFETY BLOCK: Recover if act is missing
+    // 1. SAFETY BLOCK: Recover if Act is missing
     // ----------------------------------------------
     if (!currentact) {
         console.warn("[SYSTEM] currentact is null. Attempting recovery...");
         const savedactId = (Engine.player && Engine.player.currentactId) ? Engine.player.currentactId : "act1";
         
         // Manual link to the global window objects
+        // (Use uppercase window.ACT1 to match your file definitions)
         const actMap = {
-            // Fix: Use uppercase window.ACT1, ACT2 etc to match your files
-  // Fix: Use uppercase window.ACT1, ACT2 etc to match your files
-	  const actS = {
-		act1: window.ACT1,
-		act2: window.ACT2,
-		act3: window.ACT3,
-		act4: window.ACT4,
-		act5: window.ACT5,
-		act6: window.ACT6
-	  };
+            act1: window.ACT1,
+            act2: window.ACT2,
+            act3: window.ACT3,
+            act4: window.ACT4,
+            act5: window.ACT5,
+            act6: window.ACT6
         };
-        currentact = actMap[savedactId];
+        
+        currentact = actMap[savedactId] || actMap["act1"];
 
         if (!currentact) {
             storyEl.innerHTML = `<p style="color:red; border:1px solid red; padding:10px;">
@@ -223,6 +222,8 @@ function renderScene(sceneId) {
             return;
         }
     }
+    
+    // ... rest of the function continues below ...
 
     const scene = currentact.scenes[sceneId];
     if (!scene) {
