@@ -151,25 +151,26 @@ window.RegretSystem = RegretSystem;
    * Tries to hit the server, but falls back to a queue if offline.
    */
   async function saveCurrentProfile() {
-    if (!CURRENT_PROFILE_NAME || !PROFILES[CURRENT_PROFILE_NAME]) return;
-    
-    // 1. Always Save to LocalStorage first (for instant recovery)
-    PROFILES[CURRENT_PROFILE_NAME].scene = currentSceneId;
-    saveProfilesToStorage(PROFILES);
+  // Defensive: ensure the app-level profile variable is present
+  if (!currentProfileName || !PROFILES[currentProfileName]) return;
 
-    const dataToSync = {
-      profileName: CURRENT_PROFILE_NAME,
-      playerData: Engine.player,
-      timestamp: Date.now()
-    };
+  // 1. Always save locally first (instant recovery)
+  PROFILES[currentProfileName].scene = currentSceneId;
+  saveProfilesToStorage(PROFILES);
 
-    // 2. Try to sync with Render/MongoDB
-    if (navigator.onLine) {
-      syncWithServer(dataToSync);
-    } else {
-      queueForLater(dataToSync);
-    }
+  const dataToSync = {
+    profileName: currentProfileName,
+    playerData: Engine.player,
+    timestamp: Date.now()
+  };
+
+  // 2. Try to sync with the server, otherwise queue for later
+  if (navigator.onLine) {
+    syncWithServer(dataToSync);
+  } else {
+    queueForLater(dataToSync);
   }
+}
 
   async function syncWithServer(data) {
     try {
@@ -194,7 +195,7 @@ window.RegretSystem = RegretSystem;
   /**
    * Listener: When internet returns, flush the queue
    */
-  window.addEventListener('online', async () => {
+ /*  window.addEventListener('online', async () => {
     console.log("[SYSTEM] Connection restored. Flushing offline queue...");
     const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]");
     
@@ -213,57 +214,144 @@ window.RegretSystem = RegretSystem;
         console.error("[SYSTEM] Sync failed, will retry later.");
       }
     }
-  });
+  }); */
   // -------------------------
   // Existing Navigation Logic (Updated to use the new save)
   // -------------------------
 
   function renderScene(sceneId) {
+	// --- SAFETY BLOCK START ---
+    if (!currentAct) {
+        console.warn("CRITICAL: currentAct is missing. Attempting to repair...");
+        
+        // 1. Try to recover the Act based on the player's save data
+        const savedActId = (Engine.player && Engine.player.currentActId) ? Engine.player.currentActId : "act1";
+        
+        // 2. Map the ID to the global window object
+        const actMap = {
+            "act1": window.ACT1,
+            "act2": window.ACT2,
+            "act3": window.ACT3,
+            "act4": window.ACT4,
+            "act6": window.ACT6 
+        };
+        
+        currentAct = actMap[savedActId];
+
+        // 3. If it's STILL missing, we have a loading error
+        if (!currentAct) {
+            console.error(`ERROR: Could not find Act data for '${savedActId}'. Check if act${savedActId.replace('act','').js} is loaded in index.html and has no syntax errors.`);
+            document.getElementById('story').innerHTML = `<p style="color:red">[SYSTEM ERROR] Data for ${savedActId} is corrupted or missing.</p>`;
+            return;
+        }
+    }
+    // --- SAFETY BLOCK END ---
+
     const scene = currentAct.scenes[sceneId];
-    if (!scene) return;
-    currentSceneId = sceneId;
+    if (!scene) {
+        console.error(`Scene '${sceneId}' not found in Act '${currentAct.id}'`);
+        return;
+    }
 
-    // Trigger the save whenever a scene renders
-    saveCurrentProfile();
-
+    // 1. Clear previous content
     storyEl.innerHTML = "";
+    choicesEl.innerHTML = "";
+
+    // 2. Render Text
     const p = document.createElement("p");
-    p.className = "scene-text";
     p.innerHTML = scene.text.replace(/\n/g, "<br>");
     storyEl.appendChild(p);
-	
-	// Trigger the Echo
-    RegretSystem.reap();
-	
-    clearChoices();
-    scene.choices?.forEach(choice => {
-      const btn = createChoiceButton(choice.label, () => {
-        // Apply flags
-        choice.flags?.forEach(f => Engine.player.flags.add(f));
-        renderScene(choice.next);
-      });
-      choicesEl.appendChild(btn);
+
+    // 3. Handle Text Input (The Identity Prompt)
+    if (scene.input) {
+        const inputWrap = document.createElement("div");
+        inputWrap.className = "input-container";
+
+        const field = document.createElement("input");
+        field.type = "text";
+        field.className = "story-input";
+        field.placeholder = scene.input.placeholder || "Type here...";
+
+        const btn = document.createElement("button");
+        btn.className = "choice-btn";
+        btn.innerText = scene.input.buttonLabel || "Submit";
+
+        btn.onclick = () => {
+            const val = field.value.trim();
+            if (val) {
+                Engine.player[scene.input.key] = val; // Saves the name
+                saveCurrentProfile(); // Syncs to server/local
+                renderScene(scene.next);
+            }
+        };
+
+        inputWrap.appendChild(field);
+        inputWrap.appendChild(btn);
+        choicesEl.appendChild(inputWrap);
+        return; // Important: Stop here so we don't render buttons
+    }
+
+    // 4. Render Choices (The Branching Path)
+    scene.choices.forEach(choice => {
+        const btn = document.createElement("button");
+        btn.className = "choice-btn";
+        btn.innerHTML = choice.label;
+
+        btn.onclick = () => {
+            // Plant seeds of regret if the choice has an onChoose
+            if (choice.onChoose) choice.onChoose();
+
+            // Apply stats or flags
+            if (choice.stats) {
+                for (let s in choice.stats) Engine.player.stats[s] += choice.stats[s];
+            }
+            
+            // Handle post-text or transition
+            if (choice.postText) {
+                p.innerHTML += `<div class='post-text'>${choice.postText}</div>`;
+                btn.disabled = true;
+                // Add a "Continue" button to move to next scene
+                const contBtn = document.createElement("button");
+                contBtn.innerText = "Continue";
+                contBtn.onclick = () => renderScene(choice.next);
+                choicesEl.appendChild(contBtn);
+            } else {
+                renderScene(choice.next);
+            }
+            
+            saveCurrentProfile();
+        };
+        choicesEl.appendChild(btn);
     });
-  }
+
+    updateHUD(); // Refresh stats on screen
+}
 
   function loadProfile(name) {
-    try {
-      const profiles = loadProfilesFromStorage();
-      if (!profiles[name]) return false;
-      const profile = profiles[name];
-      Engine.player = cloneDeep(profile.player || {});
-      currentProfileName = name;
-      setLastProfileName(name);
-      if (profile.scene) currentSceneId = profile.scene;
-      profiles[name].updated_at = new Date().toISOString();
-      saveProfilesToStorage(profiles);
-      updateProfileUI();
-      return true;
-    } catch (err) {
-      console.error("Failed to load profile:", err);
-      return false;
-    }
+  try {
+    const profiles = loadProfilesFromStorage();
+    if (!profiles[name]) return false;
+    const profile = profiles[name];
+
+    // Keep Engine.player reference intact (engine.applyChoice uses internal reference).
+    const newPlayer = cloneDeep(profile.player || {});
+    if (!Engine.player) Engine.player = {};
+    // Clear existing keys then copy new ones
+    Object.keys(Engine.player).forEach(k => delete Engine.player[k]);
+    Object.assign(Engine.player, newPlayer);
+
+    currentProfileName = name;
+    setLastProfileName(name);
+    if (profile.scene) currentSceneId = profile.scene;
+    profiles[name].updated_at = new Date().toISOString();
+    saveProfilesToStorage(profiles);
+    updateProfileUI();
+    return true;
+  } catch (err) {
+    console.error("Failed to load profile:", err);
+    return false;
   }
+}
 
   function createProfile(name) {
     if (!name || !name.trim()) return null;
@@ -931,7 +1019,7 @@ window.RegretSystem = RegretSystem;
   if (storyEl) storyEl.addEventListener("scroll", () => { requestAnimationFrame(updateChoiceVisibilityBasedOnScroll); });
 
   // The main renderScene function (uses templates, enterActions, and autosave after choices)
-  function renderScene(sceneId) {
+  /* function renderScene(sceneId) {
     if (!sceneId) return;
     const owningAct = findActForSceneId(sceneId);
     if (owningAct && owningAct !== currentAct) currentAct = owningAct;
@@ -1103,7 +1191,7 @@ window.RegretSystem = RegretSystem;
 
     updateHUD();
     updateChoiceVisibilityBasedOnScroll();
-  }
+  } */
 
   // -------------------------
   // Restart logic (profile-aware) — FIX: ensure restart button reliably attached after init
@@ -1210,9 +1298,12 @@ window.RegretSystem = RegretSystem;
         if (typeof loadSave === "function") {
           const legacy = loadSave();
           if (legacy && legacy.scene) {
-            Engine.player = legacy;
-            currentSceneId = legacy.scene;
-          }
+			  const newPlayer = cloneDeep(legacy);
+			  if (!Engine.player) Engine.player = {};
+			  Object.keys(Engine.player).forEach(k => delete Engine.player[k]);
+			  Object.assign(Engine.player, newPlayer);
+			  currentSceneId = legacy.scene;
+			}
         }
       } catch (e) {}
       // ensure there is at least one profile
@@ -1232,35 +1323,62 @@ window.RegretSystem = RegretSystem;
   if (!currentSceneId && currentAct) currentSceneId = currentAct.start;
   renderScene(currentSceneId);
 
-window.addEventListener('online', async () => {
-  console.log("[SYSTEM] Connection restored. Synchronizing data...");
-  
-  const saveKey = 'apokalupsis_offline_queue';
-  const queue = JSON.parse(localStorage.getItem(saveKey) || "[]");
+// -------------------------
+  // 1. Consolidate the Online Sync Listener
+  // -------------------------
+  window.addEventListener('online', async () => {
+    console.log("[SYSTEM] Connection restored. Synchronizing data...");
+    
+    // Use the standardized key
+    const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]");
 
-  if (queue.length > 0) {
-    try {
-      // Send the entire backlog to the server
-      const response = await fetch('/api/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ events: queue })
-      });
+    if (queue.length > 0) {
+        try {
+            const response = await fetch('/api/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ events: queue })
+            });
 
-      if (response.ok) {
-        console.log("[SYSTEM] Sync complete. Local queue cleared.");
-        localStorage.removeItem(saveKey);
-      }
-    } catch (err) {
-      console.error("[SYSTEM] Sync failed. Will retry next time connection is stable.");
+            if (response.ok) {
+                console.log("[SYSTEM] Sync complete. Local queue cleared.");
+                localStorage.removeItem(OFFLINE_QUEUE_KEY);
+            }
+        } catch (err) {
+            console.error("[SYSTEM] Sync failed. Will retry later.");
+        }
     }
-  }
-});
+  });
 
-  // Expose helpers for debugging
+  // -------------------------
+  // 2. Main Initialization Block
+  // -------------------------
+  function initGame() {
+    initProfilesAndLoad();
+
+    if (restartBtn) {
+        // Remove old listener to prevent duplicates if re-running
+        restartBtn.removeEventListener("click", restartGamePrompt);
+        restartBtn.addEventListener("click", restartGamePrompt);
+    }
+
+    // Default start if no scene is loaded
+    if (!currentSceneId && currentAct) {
+        currentSceneId = currentAct.start;
+    }
+    
+    renderScene(currentSceneId);
+  }
+
+  // 3. Final Execution
+  initGame();
+
+  // -------------------------
+  // 4. Debug Helpers (Inside the IIFE scope)
+  // -------------------------
   window.__profiles = () => loadProfilesFromStorage();
   window.__currentProfile = () => currentProfileName;
   window.__saveProfileNow = () => saveCurrentProfile();
   window.__switchProfile = (n) => loadProfile(n);
 
-})();
+})(); // <--- THIS must be the ONLY closing tag at the end
