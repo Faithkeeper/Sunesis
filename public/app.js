@@ -26,7 +26,7 @@
   const hudItemsEl = document.getElementById("hud-items");
   
   const RegretSystem = {
-    // SOW: Call this in act files (e.g., RegretSystem.sow('rushed'))
+    // SOW: Call this in Act files (e.g., RegretSystem.sow('rushed'))
     sow: function(type) {
         if (!Engine.player.regretSeeds) Engine.player.regretSeeds = [];
         
@@ -69,32 +69,17 @@
         }
     }
 };
-// Expose it so act scripts can use it
+// Expose it so Act scripts can use it
 window.RegretSystem = RegretSystem;
 
-  function clearChoices() {
-  choicesEl.innerHTML = "";
-  choicesEl.style.display = "none";
-}
+  function clearChoices() { choicesEl.innerHTML = ""; }
   function createChoiceButton(label, onClick) {
-  const btn = document.createElement("button");
-  btn.className = "choice";
-  btn.textContent = "▸ " + label;
-
-  btn.onclick = () => {
-    // lock all choices immediately
-    Array.from(choicesEl.children).forEach(b => b.disabled = true);
-
-    // run scene logic
-    onClick();
-
-    // autosave after EVERY choice
-    saveCurrentProfile();
-  };
-
-  return btn;
-}
-
+    const btn = document.createElement("button");
+    btn.className = "choice";
+    btn.textContent = "▸ " + label;
+    btn.onclick = onClick;
+    return btn;
+  }
 
   const Engine = window.Engine || { player: {} }; // Engine.applyChoice must exist in your environment
   if (!Engine) {
@@ -207,140 +192,163 @@ window.RegretSystem = RegretSystem;
     console.warn("[SYSTEM] Offline. Progress queued locally.");
   }
 
-function renderScene(sceneId) {
-    // ----------------------------------------------
-    // 1. SAFETY BLOCK: Recover if Act is missing
-    // ----------------------------------------------
-    if (!currentact) {
-        console.warn("[SYSTEM] currentact is null. Attempting recovery...");
-        const savedactId = (Engine.player && Engine.player.currentactId) ? Engine.player.currentactId : "act1";
-        
-        // Manual link to the global window objects
-        // (Use uppercase window.ACT1 to match your file definitions)
-        const actMap = {
-            act1: window.ACT1,
-            act2: window.ACT2,
-            act3: window.ACT3,
-            act4: window.ACT4,
-            act5: window.ACT5,
-            act6: window.ACT6
-        };
-        
-        currentact = actMap[savedactId] || actMap["act1"];
-
-        if (!currentact) {
-            storyEl.innerHTML = `<p style="color:red; border:1px solid red; padding:10px;">
-                [CRITICAL ERROR] Data for <b>${savedactId}</b> is missing.<br>
-                Please check that ${savedactId}.js is loaded in index.html without errors.
-            </p>`;
-            return;
-        }
-    }
+  /**
+   * Listener: When internet returns, flush the queue
+   */
+  window.addEventListener('online', async () => {
+    console.log("[SYSTEM] Connection restored. Flushing offline queue...");
+    const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]");
     
-    // ... rest of the function continues below ...
-
-    const scene = currentact.scenes[sceneId];
-    if (!scene) {
-        console.error(`Scene ${sceneId} not found in ${currentact.id}`);
-        storyEl.innerHTML = `<p>[SYSTEM ERROR] Scene '${sceneId}' does not exist.</p>`;
-        return;
+    if (queue.length > 0) {
+      try {
+        const response = await fetch('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ events: queue })
+        });
+        if (response.ok) {
+          localStorage.removeItem(OFFLINE_QUEUE_KEY);
+          console.log("[SYSTEM] All offline progress synced to MongoDB.");
+        }
+      } catch (e) {
+        console.error("[SYSTEM] Sync failed, will retry later.");
+      }
     }
+  });
+  // -------------------------
+  // Existing Navigation Logic (Updated to use the new save)
+  // -------------------------
 
-    // ----------------------------------------------
-    // 2. RENDER CONTENT
-    // ----------------------------------------------
-    // Clear UI
-	storyEl.innerHTML = "";
-	choicesEl.innerHTML = "";
+  function renderScene(sceneId) {
+    const scene = currentAct.scenes[sceneId];
+    if (!scene) return;
+    currentSceneId = sceneId;
 
-	// Render text
-	const p = document.createElement("p");
-	p.innerHTML = scene.text.replace(/\n/g, "<br>");
-	storyEl.appendChild(p);
+    // Trigger the save whenever a scene renders
+    saveCurrentProfile();
 
-	clearChoices();
+    storyEl.innerHTML = "";
+    const p = document.createElement("p");
+    p.className = "scene-text";
+    p.innerHTML = scene.text.replace(/\n/g, "<br>");
+    storyEl.appendChild(p);
+	
+	// Trigger the Echo
+    RegretSystem.reap();
+	
+    clearChoices();
+    // (Replace the scene.choices.forEach(choice => { ... }) block in renderScene with this)
+scene.choices.forEach(choice => {
+  const btn = createChoiceButton(choice.label || "(no label)", () => {
+    try {
+      // Let the engine apply the choice (handles stats, flags, reputations, items, history, etc)
+      if (typeof Engine.applyChoice === "function") {
+        Engine.applyChoice(choice);
+      } else {
+        // fallback: if engine missing, be defensive and manually apply flags/stats (not ideal)
+        if (choice.stats) {
+          Engine.player.stats = Engine.player.stats || {};
+          for (let k in choice.stats) {
+            Engine.player.stats[k] = (Number(Engine.player.stats[k]) || 0) + (Number(choice.stats[k]) || 0);
+          }
+        }
+        if (choice.flags) {
+          Engine.player.flags = Engine.player.flags || [];
+          choice.flags.forEach(f => { if (!Engine.player.flags.includes(f)) Engine.player.flags.push(f); });
+        }
+        if (choice.reputation) {
+          Engine.player.reputations = Engine.player.reputations || [];
+          if (!Engine.player.reputations.includes(choice.reputation)) Engine.player.reputations.push(choice.reputation);
+        }
+        if (choice.item) {
+          Engine.player.items = Engine.player.items || [];
+          if (!Engine.player.items.includes(choice.item)) Engine.player.items.push(choice.item);
+        }
+      }
 
-	// 🚨 INPUT TAKES ABSOLUTE PRIORITY
-	if (scene.input) {
-	  const inputContainer = document.createElement("div");
-	  inputContainer.className = "input-container";
-
-	  const inputField = document.createElement("input");
-	  inputField.type = "text";
-	  inputField.className = "story-input";
-	  inputField.placeholder = scene.input.placeholder || "Type here...";
-
-	  const submitBtn = document.createElement("button");
-	  submitBtn.className = "choice-btn";
-	  submitBtn.innerText = scene.input.buttonLabel || "Submit";
-
-	  submitBtn.onclick = () => {
-		const val = inputField.value.trim();
-		if (!val) return;
-
-		Engine.player[scene.input.key] = val;
-		saveCurrentProfile();
-
-		const dest = resolveAndSwitchActIfNeeded(scene.next);
-		if (dest !== null) renderScene(dest);
-	  };
-
-	  inputContainer.appendChild(inputField);
-	  inputContainer.appendChild(submitBtn);
-	  choicesEl.appendChild(inputContainer);
-	  updateHUD();
-	  updateChoiceVisibilityBasedOnScroll();
-	  return; // ⛔ NOTHING ELSE RENDERS
+      // Autosave immediately after the mutation
+      saveCurrentProfile();
+	  
+	  // If this choice granted the Path_Noticed flag and player has no late_name, ask for it now
+	const addedPath = (choice.flags || []).some(f => f === "Path_Noticed" || f === "path_noticed");
+	const hasLateName = !!(Engine.player && Engine.player.late_name && Engine.player.late_name.trim().length > 0);
+	if (addedPath && !hasLateName) {
+	  try {
+		// promptForLateName is defined earlier in app.js — this will show the modal/prompt
+		promptForLateName(false);
+		// After promptForLateName returns we update HUD and continue as normal.
+		updateHUD();
+	  } catch (e) {
+		console.warn("Name prompt failed:", e);
+	  }
 	}
 
+      const nextId = choice.next;
 
-// ✅ NORMAL CHOICES LIVE HERE
-if (scene.choices) {
-    scene.choices.forEach(choice => {
-        const btn = document.createElement("button");
-        btn.textContent = choice.label;
-
-        btn.onclick = () => {
-            if (choice.onChoose) choice.onChoose();
-
-            if (choice.stats) {
-                for (let s in choice.stats) {
-                    Engine.player.stats[s] += choice.stats[s];
-                }
-            }
-
-            if (choice.flags) {
-                Engine.player.flags ||= [];
-                choice.flags.forEach(f => {
-                    if (!Engine.player.flags.includes(f)) {
-                        Engine.player.flags.push(f);
-                    }
-                });
-            }
-
-            if (choice.postText) {
-                p.innerHTML += `<div class="post-text">${choice.postText}</div>`;
-                Array.from(choicesEl.children).forEach(b => b.disabled = true);
-
-                const cont = document.createElement("button");
-                cont.textContent = "Continue";
-                cont.onclick = () => {
-                    renderScene(choice.next);
-                    saveCurrentProfile();
-                };
-                choicesEl.appendChild(cont);
+      if (choice.postText) {
+        const renderedPost = applyTemplates((choice.postText || "").trim());
+        storyEl.innerHTML = renderedPost;
+        if (storyEl) storyEl.scrollTop = 0;
+        clearChoices();
+        const cont = createChoiceButton("Continue", () => {
+          if (nextId && /^act[1-6]_start$/.test(nextId)) {
+            const actIndex = nextId.match(/^act([1-6])_start$/)[1];
+            const actKey = "act" + actIndex;
+            if (!ACTS[actKey]) {
+              const resolved = resolveAndSwitchActIfNeeded(nextId);
+              if (resolved === null) return;
             } else {
-                renderScene(choice.next);
-                saveCurrentProfile();
+              currentAct = ACTS[actKey];
+              renderScene(ACTS[actKey].start);
+              return;
             }
-        };
+          }
+          if (!nextId) {
+            updateHUD();
+            updateChoiceVisibilityBasedOnScroll();
+            return;
+          }
+          const resolved = resolveAndSwitchActIfNeeded(nextId);
+          if (resolved !== null) renderScene(resolved);
+        });
+        choicesEl.appendChild(cont);
+        updateHUD();
+        updateChoiceVisibilityBasedOnScroll();
+        return;
+      }
 
-        choicesEl.appendChild(btn);
-    });
-}
+      if (!nextId) {
+        console.warn("Choice has no next:", choice);
+        updateHUD();
+        updateChoiceVisibilityBasedOnScroll();
+        return;
+      }
 
-    updateHUD();
-}
+      if (/^act[1-6]_start$/.test(nextId)) {
+        const actIndex = nextId.match(/^act([1-6])_start$/)[1];
+        const actKey = "act" + actIndex;
+        if (!ACTS[actKey]) {
+          const resolved = resolveAndSwitchActIfNeeded(nextId);
+          if (resolved === null) return;
+        } else {
+          currentAct = ACTS[actKey];
+          renderScene(ACTS[actKey].start);
+          return;
+        }
+      }
+
+      const resolvedNext = resolveAndSwitchActIfNeeded(nextId);
+      if (resolvedNext !== null) renderScene(resolvedNext);
+      else console.warn("Could not resolve next:", nextId);
+
+    } catch (err) {
+      console.error("Error applying choice:", err);
+      alert("An error occurred. See console.");
+    }
+  });
+  choicesEl.appendChild(btn);
+});
+  }
 
   function loadProfile(name) {
   try {
@@ -517,7 +525,7 @@ if (scene.choices) {
       const statusBlock = [
         "SYSTEM IDENTITY: REGISTERED",
         "",
-        "ROLE: [REDactED]",
+        "ROLE: [REDACTED]",
         "",
         "STATUS: UNAVOIDABLE"
       ].join("\n");
@@ -653,9 +661,7 @@ if (scene.choices) {
     choicesEl.innerHTML = "";
     const dl = createChoiceButton("Download migration payload (JSON)", () => { downloadMigrationPayload("migration_payload_book1.json"); });
     const inspect = createChoiceButton("Inspect player (console)", () => { console.log("Player state:", Engine.player); alert("Player state logged to console."); });
-    choicesEl.style.display = "";
-
-	choicesEl.appendChild(dl);
+    choicesEl.appendChild(dl);
     choicesEl.appendChild(inspect);
     updateHUD();
     choicesEl.style.display = "";
@@ -739,8 +745,6 @@ if (scene.choices) {
     const no = createChoiceButton("NO — Walk away", () => {
       showSystemIDCard("GAMMA", friction, core);
     });
-	choicesEl.style.display = "";
-	
     choicesEl.appendChild(yes);
     choicesEl.appendChild(no);
     updateHUD();
@@ -757,26 +761,26 @@ if (scene.choices) {
   }
 
 /// -------------------------
-  // act Registry (Fixed casing mismatch)
+  // Act Registry (Fixed casing mismatch)
   // -------------------------
-  const actS = {
-    act1: window.act1 || window.act1,
-    act2: window.act2 || window.act2,
-    act3: window.act3 || window.act3,
-    act4: window.act4 || window.act4,
-    act5: window.act5 || window.act5,
-    act6: window.act6 || window.act6
+  const ACTS = {
+    act1: window.act1 || window.ACT1,
+    act2: window.act2 || window.ACT2,
+    act3: window.act3 || window.ACT3,
+    act4: window.act4 || window.ACT4,
+    act5: window.act5 || window.ACT5,
+    act6: window.act6 || window.ACT6
   };
   // -------------------------
   // Core rendering and choice handling (single place) — autosave after every choice
   // -------------------------
-  let currentact = window.act1 || null;
-  let currentSceneId = (currentact && currentact.start) || null;
+  let currentAct = window.act1 || null;
+  let currentSceneId = (currentAct && currentAct.start) || null;
 
   function saveScene(sceneId) {
     if (typeof saveGame === "function") {
-      if (currentact && currentact.id && currentact.id.startsWith("act")) {
-        const actNum = Number(currentact.id.replace("act", ""));
+      if (currentAct && currentAct.id && currentAct.id.startsWith("act")) {
+        const actNum = Number(currentAct.id.replace("act", ""));
         Engine.player.act = actNum || Engine.player.act;
       }
       saveGame({ ...Engine.player, scene: sceneId });
@@ -793,53 +797,51 @@ if (scene.choices) {
     } catch (err) { /* ignore */ }
   }
 
-  function findactForSceneId(sceneId) {
+  function findActForSceneId(sceneId) {
     if (!sceneId || typeof sceneId !== "string") return null;
-    for (let key in actS) {
-      const act = actS[key];
+    for (let key in ACTS) {
+      const act = ACTS[key];
       if (!act || !act.scenes) continue;
       if (act.scenes[sceneId]) return act;
     }
     const m = sceneId.match(/^act([1-6])_/);
-    if (m && actS["act" + m[1]]) return actS["act" + m[1]];
+    if (m && ACTS["act" + m[1]]) return ACTS["act" + m[1]];
     return null;
   }
 
-  function resolveAndSwitchactIfNeeded(nextId) {
+  function resolveAndSwitchActIfNeeded(nextId) {
     if (typeof nextId === "string" && /^act([1-6])_start$/.test(nextId)) {
       const actIndex = nextId.match(/^act([1-6])_start$/)[1];
       const actKey = "act" + actIndex;
-      const act = actS[actKey];
+      const act = ACTS[actKey];
       if (!act) {
-        const msg = `act ${actIndex} is not loaded in this web build.\n\nYou can download a migration payload to preserve your current progress, inspect the player state in the console, or clear the save and restart.`;
+        const msg = `Act ${actIndex} is not loaded in this web build.\n\nYou can download a migration payload to preserve your current progress, inspect the player state in the console, or clear the save and restart.`;
         storyEl.textContent = msg;
         clearChoices();
         const dl = createChoiceButton("Download migration payload", () => downloadMigrationPayload(`migration_payload_act${Engine.player.act || "current"}.json`));
         const inspect = createChoiceButton("Inspect player (console)", () => { console.log("Player state:", Engine.player); alert("Player state logged to console."); });
-        const clear = createChoiceButton("Clear save & restart", () => { if (confirm("Clear save and restart from act 1?")) { if (typeof clearSave === "function") clearSave(); resetPlayerToDefaults(1); currentact = actS.act1; renderScene(currentact.start); }});
+        const clear = createChoiceButton("Clear save & restart", () => { if (confirm("Clear save and restart from Act 1?")) { if (typeof clearSave === "function") clearSave(); resetPlayerToDefaults(1); currentAct = ACTS.act1; renderScene(currentAct.start); }});
         const close = createChoiceButton("Close (return)", () => { renderScene(currentSceneId); });
-        choicesEl.style.display = "";
-
-		choicesEl.appendChild(dl); choicesEl.appendChild(inspect); choicesEl.appendChild(clear); choicesEl.appendChild(close);
+        choicesEl.appendChild(dl); choicesEl.appendChild(inspect); choicesEl.appendChild(clear); choicesEl.appendChild(close);
         updateHUD();
         choicesEl.style.display = "";
         return null;
       }
-      currentact = act;
+      currentAct = act;
       return act.start;
     }
-    const owningact = findactForSceneId(nextId);
-    if (owningact && owningact !== currentact) currentact = owningact;
+    const owningAct = findActForSceneId(nextId);
+    if (owningAct && owningAct !== currentAct) currentAct = owningAct;
     return nextId;
   }
 
-  // applyEnteractions (multi-match)
-  function applyEnteractions(scene) {
-    if (!scene || !scene.enteractions || !Array.isArray(scene.enteractions)) return "";
+  // applyEnterActions (multi-match)
+  function applyEnterActions(scene) {
+    if (!scene || !scene.enterActions || !Array.isArray(scene.enterActions)) return "";
     let appendTexts = [];
     let matchedAny = false;
 
-    for (let act of scene.enteractions) {
+    for (let act of scene.enterActions) {
       if (act.default) continue;
       let matched = false;
       if (act.ifAny && Array.isArray(act.ifAny)) matched = act.ifAny.some(f => (Engine.player.flags || []).includes(f));
@@ -871,7 +873,7 @@ if (scene.choices) {
     }
 
     if (!matchedAny) {
-      for (let act of scene.enteractions) {
+      for (let act of scene.enterActions) {
         if (act.default) {
           if (act.addFlags && Array.isArray(act.addFlags)) {
             Engine.player.flags = Engine.player.flags || [];
@@ -1020,8 +1022,8 @@ if (scene.choices) {
   function updateChoiceVisibilityBasedOnScroll() {
     if (!choicesEl) return;
     if (isReaderMode()) {
-       if (isStoryAtBottom(8)) choicesEl.style.display = "";
-       else choicesEl.style.display = "none";
+      if (isStoryAtBottom(8)) choicesEl.style.display = "";
+      else choicesEl.style.display = "none";
     } else {
       choicesEl.style.display = "";
     }
@@ -1039,10 +1041,185 @@ if (scene.choices) {
   });
   if (storyEl) storyEl.addEventListener("scroll", () => { requestAnimationFrame(updateChoiceVisibilityBasedOnScroll); });
 
+  // The main renderScene function (uses templates, enterActions, and autosave after choices)
+  function renderScene(sceneId) {
+    if (!sceneId) return;
+    const owningAct = findActForSceneId(sceneId);
+    if (owningAct && owningAct !== currentAct) currentAct = owningAct;
+    let scene = currentAct && currentAct.scenes ? currentAct.scenes[sceneId] : null;
+
+    if (!scene) {
+      if (/^act[1-6]_start$/.test(sceneId)) {
+        const resolved = resolveAndSwitchActIfNeeded(sceneId);
+        if (resolved === null) return;
+        sceneId = resolved;
+      }
+      scene = currentAct && currentAct.scenes ? currentAct.scenes[sceneId] : null;
+      if (!scene) {
+        if (sceneId === "book1_summary") {
+          runTerminationSequence();
+          return;
+        }
+        storyEl.textContent = "Scene not found: " + sceneId;
+        clearChoices();
+        updateHUD();
+        updateChoiceVisibilityBasedOnScroll();
+        return;
+      }
+    }
+
+    currentSceneId = sceneId;
+    saveScene(sceneId);
+
+    let content = scene.text ? scene.text.trim() : "";
+
+    const branchText = applyEnterActions(scene);
+    if (branchText) content += "\n\n" + branchText;
+
+    if (scene.conditionalText) {
+      scene.conditionalText.forEach(ct => {
+        const stat = ct.if && ct.if.stat;
+        const gte = ct.if && ct.if.gte ? ct.if.gte : 0;
+        const val = (Engine.player.stats && Engine.player.stats[stat]) || 0;
+        if (val >= gte) content += "\n\n" + ct.text.trim();
+      });
+    }
+    if (scene.veil && (Engine.player.flags || []).includes("veil_seeded")) {
+      content += "\n\n" + scene.veil.revealedText.trim();
+    }
+    if (scene.microVeil) {
+      content += "\n\n" + (scene.microVeil.revealedText || "").trim();
+    }
+
+    content = applyTemplates(content);
+
+    // Enable HTML rendering for styles
+	storyEl.innerHTML = content;
+    if (storyEl) storyEl.scrollTop = 0;
+
+    const flags = Engine.player && Engine.player.flags ? Engine.player.flags : [];
+    const hasLateName = Engine.player && Engine.player.late_name && Engine.player.late_name.trim().length > 0;
+    if (sceneId === "act1_transition" && (flags.includes("Path_Noticed") || flags.includes("path_noticed")) && !hasLateName) {
+      promptForLateName(false);
+    }
+    if (sceneId === "act6_scene3" && !(flags.includes("Path_Noticed") || flags.includes("path_noticed")) && !hasLateName) {
+      promptForLateName(true);
+      if (Engine.player && Engine.player.late_name) {
+        storyEl.textContent = storyEl.textContent + `\n\n[IDENTITY REGISTERED: ${Engine.player.late_name.toUpperCase()}]`;
+      }
+    }
+
+    clearChoices();
+
+    if (scene.autoNext) {
+      const cont = createChoiceButton("Continue", () => {
+        const dest = resolveAndSwitchActIfNeeded(scene.autoNext);
+        if (dest !== null) renderScene(dest);
+      });
+      choicesEl.appendChild(cont);
+      updateHUD();
+      updateChoiceVisibilityBasedOnScroll();
+      return;
+    }
+
+    if (!scene.choices || scene.choices.length === 0) {
+      const cont = createChoiceButton("Continue", () => {
+        if (scene.next) {
+          const dest = resolveAndSwitchActIfNeeded(scene.next);
+          if (dest !== null) renderScene(dest);
+        } else {
+          updateHUD();
+          updateChoiceVisibilityBasedOnScroll();
+        }
+      });
+      choicesEl.appendChild(cont);
+      updateHUD();
+      updateChoiceVisibilityBasedOnScroll();
+      return;
+    }
+
+    scene.choices.forEach(choice => {
+      const btn = createChoiceButton(choice.label || "(no label)", () => {
+        try {
+          Engine.applyChoice(choice);
+
+          // Autosave immediately after the choice mutation
+          saveCurrentProfile();
+
+          const nextId = choice.next;
+
+          if (choice.postText) {
+            const renderedPost = applyTemplates((choice.postText || "").trim());
+            storyEl.innerHTML = renderedPost;
+            if (storyEl) storyEl.scrollTop = 0;
+            clearChoices();
+            const cont = createChoiceButton("Continue", () => {
+              if (nextId && /^act[1-6]_start$/.test(nextId)) {
+                const actIndex = nextId.match(/^act([1-6])_start$/)[1];
+                const actKey = "act" + actIndex;
+                if (!ACTS[actKey]) {
+                  const resolved = resolveAndSwitchActIfNeeded(nextId);
+                  if (resolved === null) return;
+                } else {
+                  currentAct = ACTS[actKey];
+                  renderScene(ACTS[actKey].start);
+                  return;
+                }
+              }
+              if (!nextId) {
+                updateHUD();
+                updateChoiceVisibilityBasedOnScroll();
+                return;
+              }
+              const resolved = resolveAndSwitchActIfNeeded(nextId);
+              if (resolved !== null) renderScene(resolved);
+            });
+            choicesEl.appendChild(cont);
+            updateHUD();
+            updateChoiceVisibilityBasedOnScroll();
+            return;
+          }
+
+          if (!nextId) {
+            console.warn("Choice has no next:", choice);
+            updateHUD();
+            updateChoiceVisibilityBasedOnScroll();
+            return;
+          }
+
+          if (/^act[1-6]_start$/.test(nextId)) {
+            const actIndex = nextId.match(/^act([1-6])_start$/)[1];
+            const actKey = "act" + actIndex;
+            if (!ACTS[actKey]) {
+              const resolved = resolveAndSwitchActIfNeeded(nextId);
+              if (resolved === null) return;
+            } else {
+              currentAct = ACTS[actKey];
+              renderScene(ACTS[actKey].start);
+              return;
+            }
+          }
+
+          const resolvedNext = resolveAndSwitchActIfNeeded(nextId);
+          if (resolvedNext !== null) renderScene(resolvedNext);
+          else console.warn("Could not resolve next:", nextId);
+
+        } catch (err) {
+          console.error("Error applying choice:", err);
+          alert("An error occurred. See console.");
+        }
+      });
+      choicesEl.appendChild(btn);
+    });
+
+    updateHUD();
+    updateChoiceVisibilityBasedOnScroll();
+  }
+
   // -------------------------
   // Restart logic (profile-aware) — FIX: ensure restart button reliably attached after init
   // -------------------------
-  function resetPlayerToDefaults(desiredact = 1) {
+  function resetPlayerToDefaults(desiredAct = 1) {
     const defaultPlayer = {
       stats: { sunesis: 0, gnosis: 0, skepticism: 0, authority: 0, discovery: 0 },
       flags: [], 
@@ -1050,7 +1227,7 @@ if (scene.choices) {
       items: [], 
       history: [], 
       alignment: null, 
-      act: desiredact, 
+      act: desiredAct, 
       late_name: null, 
       created_at: new Date().toISOString(),
       regretSeeds: [] // <--- ADD THIS LINE
@@ -1067,19 +1244,19 @@ if (scene.choices) {
   function restartGamePrompt() {
     // Profile-aware restart dialog
     try {
-      const actNum = currentact && currentact.id && /^act([1-6])$/.test(currentact.id) ? Number(currentact.id.replace("act", "")) : (Engine.player && Engine.player.act) || 1;
-      const hasMultipleacts = !!(actS.act2);
+      const actNum = currentAct && currentAct.id && /^act([1-6])$/.test(currentAct.id) ? Number(currentAct.id.replace("act", "")) : (Engine.player && Engine.player.act) || 1;
+      const hasMultipleActs = !!(ACTS.act2);
 
       if (!currentProfileName) {
         // no profile — simple restart confirmation (clear any legacy save)
-        if (!confirm("Restart the game from the beginning? This will clear your save and return to act 1.")) return;
+        if (!confirm("Restart the game from the beginning? This will clear your save and return to Act 1.")) return;
         // clear profiles entirely
         PROFILES = {};
         saveProfilesToStorage(PROFILES);
         setLastProfileName(null);
         resetPlayerToDefaults(1);
-        currentact = actS.act1;
-        currentSceneId = currentact.start;
+        currentAct = ACTS.act1;
+        currentSceneId = currentAct.start;
         createProfile("Default");
         loadProfile("Default");
         renderScene(currentSceneId);
@@ -1091,22 +1268,22 @@ if (scene.choices) {
       const choice = window.prompt(promptText, "1");
       if (choice === null) return;
       if (choice.trim() === "1") {
-        if (!confirm(`Restart from the beginning of act ${actNum} in profile "${currentProfileName}"? This will clear saved progress for this profile's act.`)) return;
+        if (!confirm(`Restart from the beginning of Act ${actNum} in profile "${currentProfileName}"? This will clear saved progress for this profile's act.`)) return;
         // reset player to defaults but keep profile name
         resetPlayerToDefaults(actNum);
         // overwrite profile with fresh default player (act set to actNum)
         PROFILES = loadProfilesFromStorage();
         PROFILES[currentProfileName] = {
           player: cloneDeep(Engine.player),
-          scene: (actS["act" + actNum] ? actS["act" + actNum].start : currentSceneId),
+          scene: (ACTS["act" + actNum] ? ACTS["act" + actNum].start : currentSceneId),
           updated_at: new Date().toISOString(),
           displayName: currentProfileName
         };
         saveProfilesToStorage(PROFILES);
         setLastProfileName(currentProfileName);
-        if (actS["act" + actNum]) {
-          currentact = actS["act" + actNum];
-          currentSceneId = currentact.start;
+        if (ACTS["act" + actNum]) {
+          currentAct = ACTS["act" + actNum];
+          currentSceneId = currentAct.start;
         } else {
           currentSceneId = PROFILES[currentProfileName].scene;
         }
@@ -1114,15 +1291,15 @@ if (scene.choices) {
         return;
       }
       if (choice.trim() === "2") {
-        if (!confirm("Restart the entire game from act 1? This will clear ALL profiles.")) return;
+        if (!confirm("Restart the entire game from Act 1? This will clear ALL profiles.")) return;
         PROFILES = {};
         saveProfilesToStorage(PROFILES);
         setLastProfileName(null);
         resetPlayerToDefaults(1);
         createProfile("Default");
         loadProfile("Default");
-        currentact = actS.act1;
-        currentSceneId = currentact.start;
+        currentAct = ACTS.act1;
+        currentSceneId = currentAct.start;
         renderScene(currentSceneId);
         return;
       }
@@ -1166,69 +1343,38 @@ if (scene.choices) {
 
   if (restartBtn) restartBtn.addEventListener("click", restartGamePrompt);
 
-  if (!currentSceneId && currentact) currentSceneId = currentact.start;
+  if (!currentSceneId && currentAct) currentSceneId = currentAct.start;
   renderScene(currentSceneId);
 
-// -------------------------
-  // 1. Consolidate the Online Sync Listener
-  // -------------------------
-  window.addEventListener('online', async () => {
-    console.log("[SYSTEM] Connection restored. Synchronizing data...");
-    
-    // Use the standardized key
-    const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]");
+window.addEventListener('online', async () => {
+  console.log("[SYSTEM] Connection restored. Synchronizing data...");
+  
+  const saveKey = 'apokalupsis_offline_queue';
+  const queue = JSON.parse(localStorage.getItem(saveKey) || "[]");
 
-    if (queue.length > 0) {
-        try {
-            const response = await fetch('/api/sync', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ events: queue })
-            });
+  if (queue.length > 0) {
+    try {
+      // Send the entire backlog to the server
+      const response = await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ events: queue })
+      });
 
-            if (response.ok) {
-                console.log("[SYSTEM] Sync complete. Local queue cleared.");
-                localStorage.removeItem(OFFLINE_QUEUE_KEY);
-            }
-        } catch (err) {
-            console.error("[SYSTEM] Sync failed. Will retry later.");
-        }
+      if (response.ok) {
+        console.log("[SYSTEM] Sync complete. Local queue cleared.");
+        localStorage.removeItem(saveKey);
+      }
+    } catch (err) {
+      console.error("[SYSTEM] Sync failed. Will retry next time connection is stable.");
     }
-  });
-
-  // -------------------------
-  // 2. Main Initialization Block
-  // -------------------------
- // REPLACE THE BOTTOM OF YOUR FILE WITH THIS BLOCK:
-
-  // ------------------------------------------
-  // INIT LOGIC
-  // ------------------------------------------
-  // --- BOTTOM OF FILE START ---
-  function initGame() {
-    initProfilesAndLoad();
-
-    if (restartBtn) {
-        restartBtn.onclick = restartGamePrompt;
-    }
-
-    if (!currentSceneId) {
-        if (currentact) {
-            currentSceneId = currentact.start;
-        } else if (Engine.player && Engine.player.currentactId) {
-            currentSceneId = window[Engine.player.currentactId.toUpperCase()]?.start || "act1_scene1";
-        }
-    }
-    
-    setTimeout(() => renderScene(currentSceneId), 50);
   }
+});
 
-  // Debug Helpers
+  // Expose helpers for debugging
   window.__profiles = () => loadProfilesFromStorage();
   window.__currentProfile = () => currentProfileName;
   window.__saveProfileNow = () => saveCurrentProfile();
-  
-  // Start the engine
-  window.addEventListener('load', initGame);
+  window.__switchProfile = (n) => loadProfile(n);
 
-})(); // Final closing bracket for the file
+})();
